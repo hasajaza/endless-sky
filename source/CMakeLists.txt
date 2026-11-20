@@ -19,6 +19,8 @@ target_sources(EndlessSkyLib PRIVATE
 	accessibility/AccessCapture.cpp
 	accessibility/AccessCapture.h
 	accessibility/AccessContext.h
+	accessibility/AccessCrash.cpp
+	accessibility/AccessCrash.h
 	accessibility/AccessFlight.cpp
 	accessibility/AccessFlight.h
 	accessibility/AccessFormat.cpp

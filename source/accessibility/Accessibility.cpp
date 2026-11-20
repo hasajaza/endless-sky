@@ -18,6 +18,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 #include "AccessAudio.h"
 #include "AccessCapture.h"
 #include "AccessContext.h"
+#include "AccessCrash.h"
 #include "AccessFlight.h"
 #include "AccessFormat.h"
 #include "AccessInspector.h"
@@ -837,6 +838,7 @@ void Accessibility::Init(PlayerInfo &playerInfo, UI &menuPanels, UI &gamePanels)
 		}
 #endif
 	}
+	AccessCrash::Install(Files::Config() / "crash report.txt");
 	LoadSettings();
 	AccessSpeech::Init(executableDirectory, Files::Config() / "accessibility log.txt");
 	AccessKeys::Load(KeysPath());
@@ -963,6 +965,7 @@ void Accessibility::Step(bool isFastForward)
 	Panel *top = AccessContext::TopPanel();
 	if(top != lastTop)
 	{
+		AccessCrash::SetContext(top ? top->AccessibilityId() : "none");
 		bool known = LiveReader(top) != nullptr;
 		const Panel *previous = lastTop;
 		lastTop = top;
