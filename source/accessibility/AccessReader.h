@@ -115,6 +115,12 @@ protected:
 	// Run a callback after the given number of frames (for values that are
 	// only updated when the screen is redrawn).
 	void Later(int frames, std::function<void()> callback);
+	// Up, Down, Home and End move through the screen's buttons and Enter presses
+	// the selected one (for screens where the game does not use these keys).
+	// Returns true if the key was used.
+	bool NavigateButtons(int32_t key);
+	// Spoken label of a button for the button navigation.
+	std::string ButtonLabel(int index, int count, const std::string &text, char key, bool active) const;
 
 
 protected:
@@ -122,6 +128,7 @@ protected:
 
 private:
 	std::vector<std::pair<int, std::function<void()>>> deferred;
+	int buttonIndex = -1;
 };
 
 

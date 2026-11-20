@@ -39,6 +39,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <chrono>
 #include <deque>
 #include <map>
@@ -647,11 +648,19 @@ namespace {
 
 	chrono::steady_clock::time_point startTime = chrono::steady_clock::now();
 
+	chrono::steady_clock::time_point lastFocusAnnouncement;
+
 	void AnnounceFocusGained()
 	{
-		// The window gains focus when the game starts; that is not news.
-		if(chrono::steady_clock::now() - startTime < chrono::seconds(5))
+		// The window gains focus when the game starts; that is not news. Focus
+		// may also bounce several times in a row (screen readers, alt-tab).
+		auto now = chrono::steady_clock::now();
+		if(now - startTime < chrono::seconds(5) || now - lastFocusAnnouncement < chrono::seconds(3))
 			return;
+		Panel *top = AccessContext::TopPanel();
+		if(top && string(top->AccessibilityId()) == "GameLoadingPanel")
+			return;
+		lastFocusAnnouncement = now;
 		AccessReader *reader = ReaderFor(AccessContext::TopPanel());
 		string text = "Endless Sky";
 		if(reader)
@@ -831,8 +840,9 @@ void Accessibility::Init(PlayerInfo &playerInfo, UI &menuPanels, UI &gamePanels)
 	LoadSettings();
 	AccessSpeech::Init(executableDirectory, Files::Config() / "accessibility log.txt");
 	AccessKeys::Load(KeysPath());
-	if(!Files::Exists(KeysPath()))
-		AccessKeys::Save(KeysPath());
+	// Rewrite the file so that it always lists every command (the player's own
+	// choices were loaded first and are kept).
+	AccessKeys::Save(KeysPath());
 	AccessAudio::Init();
 	initialized = true;
 
@@ -1197,6 +1207,76 @@ void AccessReader::RunDeferred()
 void AccessReader::Later(int frames, function<void()> callback)
 {
 	deferred.emplace_back(frames, std::move(callback));
+}
+
+
+
+string AccessReader::ButtonLabel(int index, int count, const string &text, char key, bool active) const
+{
+	string label = text;
+	while(label.size() > 3 && label.ends_with("..."))
+		label.resize(label.size() - 3);
+	if(!active)
+		label += ", unavailable";
+	if(key)
+		label += ", " + string(1, static_cast<char>(toupper(static_cast<unsigned char>(key))));
+	return label + ", " + to_string(index + 1) + " of " + to_string(count);
+}
+
+
+
+bool AccessReader::NavigateButtons(int32_t key)
+{
+	if(key != SDLK_UP && key != SDLK_DOWN && key != SDLK_HOME && key != SDLK_END && key != SDLK_RETURN
+			&& key != SDLK_KP_ENTER)
+		return false;
+	// Buttons in reading order, without duplicates.
+	vector<AccessCapture::Item> buttons;
+	for(const AccessCapture::Item &item : AccessCapture::Buttons(&panel))
+	{
+		bool duplicate = false;
+		for(const AccessCapture::Item &other : buttons)
+			duplicate |= (other.text == item.text && other.key == item.key);
+		if(!duplicate && item.key)
+			buttons.push_back(item);
+	}
+	// The buttons stay in the order the screen's interface definition lists
+	// them, which is the order the game designers intended.
+	if(buttons.empty())
+		return false;
+	int count = static_cast<int>(buttons.size());
+	if(key == SDLK_RETURN || key == SDLK_KP_ENTER)
+	{
+		if(buttonIndex < 0 || buttonIndex >= count)
+		{
+			Say("Use the Up and Down arrows to choose an option first.");
+			return true;
+		}
+		const AccessCapture::Item &button = buttons[static_cast<size_t>(buttonIndex)];
+		if(!button.isActive)
+		{
+			AccessAudio::Play(AccessAudio::Cue::BOUNDARY);
+			Say(button.text + " is unavailable right now.");
+			return true;
+		}
+		// Press the button's own key, exactly as if it had been typed.
+		AccessContext::PressKey(static_cast<unsigned char>(button.key));
+		return true;
+	}
+	int previous = buttonIndex;
+	if(key == SDLK_HOME)
+		buttonIndex = 0;
+	else if(key == SDLK_END)
+		buttonIndex = count - 1;
+	else if(buttonIndex < 0 || buttonIndex >= count)
+		buttonIndex = key == SDLK_DOWN ? 0 : count - 1;
+	else
+		buttonIndex = max(0, min(count - 1, buttonIndex + (key == SDLK_DOWN ? 1 : -1)));
+	if(previous == buttonIndex)
+		AccessAudio::Play(AccessAudio::Cue::BOUNDARY);
+	const AccessCapture::Item &button = buttons[static_cast<size_t>(buttonIndex)];
+	Say(ButtonLabel(buttonIndex, count, button.text, button.key, button.isActive));
+	return true;
 }
 
 

@@ -58,22 +58,24 @@ namespace {
 		{AccessAction::MOTION, "motion", "Heading, speed and drift", {'o', C}},
 		{AccessAction::BEACON, "beacon", "Toggle the audio beacon toward the current target or destination",
 			{'b', C}},
-		{AccessAction::REVIEW_PREVIOUS, "review previous", "Review cursor: previous item", {SDLK_UP, C}},
-		{AccessAction::REVIEW_NEXT, "review next", "Review cursor: next item", {SDLK_DOWN, C}},
-		{AccessAction::REVIEW_FIRST, "review first", "Review cursor: first item", {SDLK_HOME, C}},
-		{AccessAction::REVIEW_LAST, "review last", "Review cursor: last item", {SDLK_END, C}},
+		{AccessAction::REVIEW_PREVIOUS, "review previous", "Review cursor: previous item", {SDLK_UP, C},
+			{SDLK_F5, 0}},
+		{AccessAction::REVIEW_NEXT, "review next", "Review cursor: next item", {SDLK_DOWN, C}, {SDLK_F6, 0}},
+		{AccessAction::REVIEW_FIRST, "review first", "Review cursor: first item", {SDLK_HOME, C}, {SDLK_F5, S}},
+		{AccessAction::REVIEW_LAST, "review last", "Review cursor: last item", {SDLK_END, C}, {SDLK_F6, S}},
 		{AccessAction::REVIEW_PREVIOUS_GROUP, "review previous group", "Review cursor: previous list or category",
-			{SDLK_LEFT, C}},
+			{SDLK_LEFT, C}, {SDLK_F7, 0}},
 		{AccessAction::REVIEW_NEXT_GROUP, "review next group", "Review cursor: next list or category",
-			{SDLK_RIGHT, C}},
+			{SDLK_RIGHT, C}, {SDLK_F8, 0}},
 		{AccessAction::REVIEW_ACTIVATE, "review activate", "Review cursor: activate or select the item",
-			{SDLK_RETURN, C}},
+			{SDLK_RETURN, C}, {SDLK_F9, 0}},
 		{AccessAction::REVIEW_CURRENT, "review current", "Review cursor: read the current item in detail",
-			{SDLK_SPACE, C}},
+			{SDLK_SPACE, C}, {SDLK_F4, 0}},
 	};
 
 	mutex bindingMutex;
 	map<AccessAction, Binding> bindings;
+	map<AccessAction, Binding> alternates;
 	// Keys that are bound with the Ctrl modifier.
 	set<int32_t> ctrlKeys;
 	// Keys currently held down after being used in an accessibility chord.
@@ -83,6 +85,9 @@ namespace {
 	{
 		ctrlKeys.clear();
 		for(const auto &it : bindings)
+			if(it.second.modifiers & C)
+				ctrlKeys.insert(it.second.keycode);
+		for(const auto &it : alternates)
 			if(it.second.modifiers & C)
 				ctrlKeys.insert(it.second.keycode);
 	}
@@ -105,8 +110,12 @@ void AccessKeys::Load(const filesystem::path &file)
 {
 	lock_guard<mutex> lock(bindingMutex);
 	bindings.clear();
+	alternates.clear();
 	for(const Info &info : INFO)
+	{
 		bindings[info.action] = info.defaultBinding;
+		alternates[info.action] = info.defaultAlternate;
+	}
 
 	if(!file.empty() && Files::Exists(file))
 	{
@@ -117,8 +126,11 @@ void AccessKeys::Load(const filesystem::path &file)
 			if(node.Size() < 2)
 				continue;
 			for(const Info &info : INFO)
-				if(node.Token(0) == info.id)
+			{
+				bool isAlternate = node.Token(0) == string(info.id) + " alternate";
+				if(node.Token(0) == info.id || isAlternate)
 				{
+					map<AccessAction, Binding> &target = isAlternate ? alternates : bindings;
 					Binding binding;
 					for(int i = 1; i < node.Size(); ++i)
 					{
@@ -131,10 +143,11 @@ void AccessKeys::Load(const filesystem::path &file)
 							binding.keycode = SDL_GetKeyFromName(node.Token(i).c_str());
 					}
 					if(binding.keycode)
-						bindings[info.action] = binding;
+						target[info.action] = binding;
 					else if(node.Token(node.Size() - 1) == "none")
-						bindings[info.action] = Binding();
+						target[info.action] = Binding();
 				}
+			}
 		}
 	}
 	Rebuild();
@@ -149,10 +162,9 @@ void AccessKeys::Save(const filesystem::path &file)
 	out.WriteComment("Format: \"action\" [ctrl] [shift] [alt] \"key name\". Use \"none\" to disable a key.");
 	out.WriteComment("Key names are SDL key names, for example \"F2\", \"Page Up\", \"Return\", \"r\".");
 	lock_guard<mutex> lock(bindingMutex);
-	for(const Info &info : INFO)
+	auto write = [&out](const string &id, const Binding &binding)
 	{
-		const Binding &binding = bindings[info.action];
-		out.WriteToken(info.id);
+		out.WriteToken(id);
 		if(binding.modifiers & CTRL)
 			out.WriteToken("ctrl");
 		if(binding.modifiers & SHIFT)
@@ -161,6 +173,12 @@ void AccessKeys::Save(const filesystem::path &file)
 			out.WriteToken("alt");
 		out.WriteToken(binding.keycode ? SDL_GetKeyName(binding.keycode) : "none");
 		out.Write();
+	};
+	for(const Info &info : INFO)
+	{
+		write(info.id, bindings[info.action]);
+		if(alternates[info.action].keycode || info.defaultAlternate.keycode)
+			write(string(info.id) + " alternate", alternates[info.action]);
 	}
 }
 
@@ -170,20 +188,21 @@ AccessAction AccessKeys::Match(int32_t keycode, uint16_t sdlModifiers)
 {
 	uint16_t mods = FromSDL(sdlModifiers);
 	lock_guard<mutex> lock(bindingMutex);
-	for(const auto &it : bindings)
-	{
-		if(!it.second.keycode || it.second.keycode != keycode || it.second.modifiers != mods)
-			continue;
-		// An unmodified accessibility key yields to any game command the
-		// player has bound to the same key.
-		if(!(mods & (CTRL | ALT)))
+	for(const auto *table : {&bindings, &alternates})
+		for(const auto &it : *table)
 		{
-			Command command(keycode);
-			if(command)
+			if(!it.second.keycode || it.second.keycode != keycode || it.second.modifiers != mods)
 				continue;
+			// An unmodified accessibility key yields to any game command the
+			// player has bound to the same key.
+			if(!(mods & (CTRL | ALT)))
+			{
+				Command command(keycode);
+				if(command)
+					continue;
+			}
+			return it.first;
 		}
-		return it.first;
-	}
 	return AccessAction::NONE;
 }
 
@@ -232,9 +251,22 @@ AccessKeys::Binding AccessKeys::Get(AccessAction action)
 
 
 
+AccessKeys::Binding AccessKeys::GetAlternate(AccessAction action)
+{
+	lock_guard<mutex> lock(bindingMutex);
+	auto it = alternates.find(action);
+	return it == alternates.end() ? Binding() : it->second;
+}
+
+
+
 string AccessKeys::KeyName(AccessAction action)
 {
-	return BindingName(Get(action));
+	string name = BindingName(Get(action));
+	Binding alternate = GetAlternate(action);
+	if(alternate.keycode)
+		name += " or " + BindingName(alternate);
+	return name;
 }
 
 
@@ -253,15 +285,15 @@ vector<string> AccessKeys::Conflicts()
 {
 	vector<string> result;
 	for(const Info &info : INFO)
-	{
-		Binding binding = Get(info.action);
-		if(!binding.keycode || (binding.modifiers & (CTRL | ALT)))
-			continue;
-		Command command(binding.keycode);
-		if(command)
-			result.push_back(BindingName(binding) + " is used by the game for " + command.Description()
-				+ ", so " + info.description + " is disabled.");
-	}
+		for(const Binding &binding : {Get(info.action), GetAlternate(info.action)})
+		{
+			if(!binding.keycode || (binding.modifiers & (CTRL | ALT)))
+				continue;
+			Command command(binding.keycode);
+			if(command)
+				result.push_back(BindingName(binding) + " is used by the game for " + command.Description()
+					+ ", so it does not work for " + info.description + ".");
+		}
 	return result;
 }
 

@@ -59,7 +59,7 @@ namespace {
 			text += ". ";
 			if(!planet.CanUseServices())
 				text += "Services are not available to you here. ";
-			text += Services() + ". ";
+			text += Services() + ". Up and Down arrows choose, Enter selects. ";
 			text += planet.Description().ToString();
 			Say(text, SpeechPriority::FOCUS);
 		}
@@ -77,8 +77,17 @@ namespace {
 		vector<string> Keys() override
 		{
 			vector<string> keys = ButtonKeys();
+			keys.push_back("Up and Down arrows move through these options and Enter selects one");
 			keys.push_back("I player info, M map, slash message log");
 			return keys;
+		}
+
+		bool PreKey(int32_t key, uint16_t mod) override
+		{
+			// The planet screen itself does not use these keys.
+			if(mod & (KMOD_CTRL | KMOD_ALT | KMOD_SHIFT))
+				return false;
+			return NavigateButtons(key);
 		}
 
 		void BuildReview(vector<ReviewGroup> &groups) override

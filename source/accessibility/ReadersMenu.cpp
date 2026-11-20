@@ -32,6 +32,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 #include "../PlayerInfo.h"
 #include "../SavedGame.h"
 #include "../Ship.h"
+#include "../SDL.h"
 #include "../StartConditions.h"
 #include "../System.h"
 #include "../audio/Audio.h"
@@ -76,14 +77,24 @@ namespace {
 			vector<string> keys = ButtonKeys();
 			if(!keys.empty())
 				text += " " + AccessFormat::List(keys) + ".";
-			return text;
+			return text + " Up and Down arrows choose, Enter selects.";
 		}
 
 		vector<string> Keys() override
 		{
 			vector<string> keys = ButtonKeys();
-			keys.push_back("Space pauses the credits, Up and Down change their speed");
+			keys.push_back("Up and Down arrows move through these options and Enter selects one");
+			keys.push_back("Space pauses the scrolling credits");
 			return keys;
+		}
+
+		bool PreKey(int32_t key, uint16_t mod) override
+		{
+			// The game only uses Up and Down here to change the speed of the
+			// scrolling credits; the menu options are more useful.
+			if(mod & (KMOD_CTRL | KMOD_ALT | KMOD_SHIFT))
+				return false;
+			return NavigateButtons(key);
 		}
 	};
 

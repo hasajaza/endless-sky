@@ -82,6 +82,9 @@ public:
 		const char *id;
 		const char *description;
 		Binding defaultBinding;
+		// A second key for the same command (function keys that screen
+		// readers do not use, for the review cursor).
+		Binding defaultAlternate = {};
 	};
 
 
@@ -104,6 +107,7 @@ public:
 
 	static const std::vector<Info> &All();
 	static Binding Get(AccessAction action);
+	static Binding GetAlternate(AccessAction action);
 	static std::string KeyName(AccessAction action);
 	static std::string Description(AccessAction action);
 	// Report the accessibility bindings that clash with a game binding.
