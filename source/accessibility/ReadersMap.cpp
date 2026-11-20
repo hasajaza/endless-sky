@@ -150,6 +150,33 @@ namespace {
 
 
 
+	// Systems the player's visible missions still need to reach, with the
+	// mission name: destinations, unvisited waypoints and stopovers.
+	vector<pair<const System *, string>> MissionSystems()
+	{
+		vector<pair<const System *, string>> result;
+		set<const System *> added;
+		PlayerInfo &player = AccessContext::Player();
+		for(const Mission &mission : player.Missions())
+		{
+			if(!mission.IsVisible())
+				continue;
+			vector<const System *> systems;
+			if(mission.Destination() && mission.Destination()->GetSystem())
+				systems.push_back(mission.Destination()->GetSystem());
+			for(const System *system : mission.Waypoints())
+				if(!mission.VisitedWaypoints().contains(system))
+					systems.push_back(system);
+			for(const Planet *planet : mission.Stopovers())
+				if(!mission.VisitedStopovers().contains(planet) && planet->GetSystem())
+					systems.push_back(planet->GetSystem());
+			for(const System *system : systems)
+				if(system != player.GetSystem() && added.insert(system).second)
+					result.emplace_back(system, mission.DisplayName());
+		}
+		return result;
+	}
+
 	class MapReader : public AccessReader {
 	public:
 		MapReader(Panel &panel) : AccessReader(panel), map(static_cast<MapPanel &>(panel)) {}
@@ -166,8 +193,22 @@ namespace {
 
 		void OnOpen() override
 		{
-			Say(Title() + ". Selected: " + SystemInfo(map, AccessInspector::SelectedSystem(map), true) + " "
-				+ RouteInfo() + " Use Control plus Down arrow to browse systems.", SpeechPriority::FOCUS);
+			PlayerInfo &player = Player();
+			string text = Title() + ". You are in " + SystemName(player.GetSystem()) + ". ";
+			const System *selected = AccessInspector::SelectedSystem(map);
+			if(selected && selected != player.GetSystem())
+				text += "Selected: " + SystemInfo(map, selected, false) + " ";
+			text += RouteInfo() + " ";
+			vector<pair<const System *, string>> missions = MissionSystems();
+			if(!missions.empty())
+			{
+				vector<string> names;
+				for(const auto &it : missions)
+					names.push_back(SystemName(it.first) + " for " + it.second);
+				text += "Mission destinations: " + AccessFormat::List(names) + ". ";
+			}
+			text += "Left and Right arrows choose a destination, Enter plans the route.";
+			Say(text, SpeechPriority::FOCUS);
 		}
 
 		void OnReturn() override
@@ -184,6 +225,9 @@ namespace {
 		vector<string> Keys() override
 		{
 			vector<string> keys = {
+				"Left and Right arrows choose a destination: mission destinations first, then reachable "
+					"systems, nearest first",
+				"Enter plans a route to the chosen destination; then close the map and press the jump key",
 				"Tab or the jump key add the next hyperspace link to your route; hold Shift to extend the route",
 				"Backspace or Delete removes the last jump of the route",
 				"F finds a system or planet by name",
@@ -194,6 +238,49 @@ namespace {
 				"P ports, T stars, S shipyards, O outfitters and I missions map modes",
 				"Plus and minus zoom, M, D or Escape close the map"};
 			return keys;
+		}
+
+		bool PreKey(int32_t key, uint16_t mod) override
+		{
+			if(mod & (KMOD_CTRL | KMOD_ALT | KMOD_GUI | KMOD_SHIFT))
+				return false;
+			if(key == SDLK_LEFT || key == SDLK_RIGHT)
+			{
+				BuildDestinations();
+				if(destinations.empty())
+				{
+					Say("No known systems to travel to.");
+					return true;
+				}
+				int count = static_cast<int>(destinations.size());
+				if(destinationIndex < 0)
+					destinationIndex = (key == SDLK_RIGHT) ? 0 : count - 1;
+				else
+					destinationIndex = (destinationIndex + (key == SDLK_RIGHT ? 1 : count - 1)) % count;
+				const auto &it = destinations[static_cast<size_t>(destinationIndex)];
+				string text = it.second.empty() ? string() : "Mission " + it.second + ": ";
+				Say(text + SystemInfo(map, it.first, false) + " " + to_string(destinationIndex + 1) + " of "
+					+ to_string(count) + ".");
+				return true;
+			}
+			if((key == SDLK_RETURN || key == SDLK_KP_ENTER) && destinationIndex >= 0
+					&& destinationIndex < static_cast<int>(destinations.size()))
+			{
+				const System *system = destinations[static_cast<size_t>(destinationIndex)].first;
+				AccessInspector::SetSelectedSystem(map, system);
+				AccessInspector::Select(map, system);
+				Later(1, [this]()
+				{
+					if(Player().TravelPlan().empty())
+						Say("No route found to " + SystemName(AccessInspector::SelectedSystem(map))
+							+ ". It may not be reachable with your hyperdrive.");
+					else
+						Say(RouteInfo() + " Now close the map with " + CloseKey() + " and press "
+							+ JumpKey() + " to jump.");
+				});
+				return true;
+			}
+			return false;
 		}
 
 		void PostKey(int32_t key, uint16_t mod) override
@@ -306,6 +393,47 @@ namespace {
 		}
 
 	private:
+		// Mission destinations first, then reachable known systems by distance.
+		void BuildDestinations()
+		{
+			if(!destinations.empty())
+				return;
+			PlayerInfo &player = Player();
+			set<const System *> added;
+			for(const auto &it : MissionSystems())
+				if(added.insert(it.first).second)
+					destinations.push_back(it);
+			const DistanceMap &distance = AccessInspector::Distances(map);
+			vector<const System *> nearby;
+			for(const auto &it : GameData::Systems())
+			{
+				const System &system = it.second;
+				if(system.IsValid() && !system.Inaccessible() && player.HasSeen(system)
+						&& &system != player.GetSystem() && distance.HasRoute(system) && !added.contains(&system))
+					nearby.push_back(&system);
+			}
+			sort(nearby.begin(), nearby.end(), [&distance](const System *a, const System *b)
+			{
+				int da = distance.Days(*a);
+				int db = distance.Days(*b);
+				return da != db ? da < db : SystemName(a) < SystemName(b);
+			});
+			for(const System *system : nearby)
+				destinations.emplace_back(system, string());
+		}
+
+		static string CloseKey()
+		{
+			return Command::MAP.HasBinding() ? AccessFormat::FriendlyKey(Command::MAP.KeyName()) + " or Escape"
+				: string("Escape");
+		}
+
+		static string JumpKey()
+		{
+			return Command::JUMP.HasBinding() ? AccessFormat::FriendlyKey(Command::JUMP.KeyName())
+				: string("the jump key");
+		}
+
 		string PlanetCard()
 		{
 			const Planet *planet = AccessInspector::SelectedCard(static_cast<MapDetailPanel &>(panel));
@@ -347,6 +475,8 @@ namespace {
 
 	private:
 		MapPanel &map;
+		vector<pair<const System *, string>> destinations;
+		int destinationIndex = -1;
 	};
 
 

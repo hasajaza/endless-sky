@@ -40,6 +40,9 @@ public:
 	static std::string Location();
 	static std::string Status();
 	static std::string Target();
+	// What to do next: land on a mission planet here, jump to the next system
+	// of the route, or plan a route on the map. Empty if nothing applies.
+	static std::string NextStepHint();
 	static std::string Destination();
 	static std::string Nearby();
 	static std::string Hostiles();

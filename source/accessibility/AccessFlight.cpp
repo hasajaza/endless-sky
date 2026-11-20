@@ -63,6 +63,10 @@ using namespace std;
 namespace {
 	// Monitor state.
 	const System *lastSystem = nullptr;
+	// "What to do next" hint after arriving in a system or taking off:
+	// frames left before it is spoken (0 = none pending).
+	int hintFrames = 0;
+	bool wasOnPlanet = false;
 	const Ship *lastFlagship = nullptr;
 	weak_ptr<Ship> lastTargetShip;
 	bool hadTargetShip = false;
@@ -687,6 +691,14 @@ void AccessFlight::Step(Engine &engine, const list<ShipEvent> &events, bool isAc
 		lastFlagship = nullptr;
 		return;
 	}
+	bool arrived = lastSystem && lastFlagship == flagship && player.GetSystem() != lastSystem;
+	bool tookOff = wasOnPlanet && !player.GetPlanet() && lastFlagship == flagship;
+	wasOnPlanet = player.GetPlanet();
+	// Wait a moment so the hint comes after the game's own arrival messages.
+	if(arrived)
+		hintFrames = 150;
+	else if(tookOff)
+		hintFrames = 90;
 	if(flagship != lastFlagship || player.GetSystem() != lastSystem)
 	{
 		bool newShip = flagship != lastFlagship;
@@ -710,8 +722,16 @@ void AccessFlight::Step(Engine &engine, const list<ShipEvent> &events, bool isAc
 		}
 	}
 	// Only monitor while the player is actually flying.
+	if(player.GetPlanet())
+		hintFrames = 0;
 	if(player.GetPlanet() || !isActive)
 		return;
+	if(hintFrames > 0 && --hintFrames == 0 && !flagship->IsEnteringHyperspace())
+	{
+		string hint = NextStepHint();
+		if(!hint.empty())
+			AccessSpeech::Say(hint, SpeechPriority::INFO);
+	}
 
 	AnnounceTargets(*flagship);
 	MonitorWeapons(engine, *flagship);
@@ -912,6 +932,59 @@ string AccessFlight::Target()
 
 
 
+string AccessFlight::NextStepHint()
+{
+	PlayerInfo &player = Player();
+	const System *system = player.GetSystem();
+	if(!player.IsLoaded() || !system || player.GetPlanet())
+		return string();
+	auto keyName = [](const Command &command, const string &fallback)
+	{
+		return command.HasBinding() ? AccessFormat::FriendlyKey(command.KeyName()) : fallback;
+	};
+	// Mission planets in this system.
+	vector<string> here;
+	set<const Planet *> added;
+	bool missionsElsewhere = false;
+	for(const Mission &mission : player.Missions())
+	{
+		if(!mission.IsVisible())
+			continue;
+		vector<const Planet *> planets;
+		if(mission.Destination())
+			planets.push_back(mission.Destination());
+		for(const Planet *planet : mission.Stopovers())
+			if(!mission.VisitedStopovers().contains(planet))
+				planets.push_back(planet);
+		for(const Planet *planet : planets)
+		{
+			if(planet->IsInSystem(system))
+			{
+				if(added.insert(planet).second)
+					here.push_back(planet->DisplayName());
+			}
+			else
+				missionsElsewhere = true;
+		}
+	}
+	if(!here.empty())
+		return "Your mission destination " + AccessFormat::List(here) + " is in this system. Press "
+			+ keyName(Command::LAND, "the land key") + " to land; press it again to choose another planet.";
+	const vector<const System *> &plan = player.TravelPlan();
+	if(!plan.empty())
+	{
+		const System *next = plan.back();
+		return "Next jump: " + (player.KnowsName(*next) ? next->DisplayName() : string("unexplored system"))
+			+ ". Press " + keyName(Command::JUMP, "the jump key") + " to jump.";
+	}
+	if(missionsElsewhere)
+		return "No route planned. Press " + keyName(Command::MAP, "the map key")
+			+ " for the map, then Left and Right arrows to choose your mission destination and Enter to plan the route.";
+	return string();
+}
+
+
+
 string AccessFlight::Destination()
 {
 	PlayerInfo &player = Player();
@@ -964,9 +1037,10 @@ string AccessFlight::Destination()
 		parts.push_back("Hyperspace target " + (player.KnowsName(*system) ? system->DisplayName() + " system"
 			: string("unexplored system")));
 	}
+	string hint = NextStepHint();
 	if(parts.empty())
-		return "No destination. Open the map to plan a route, or select a landing target.";
-	return AccessFormat::List(parts) + ".";
+		return hint.empty() ? "No destination. Open the map to plan a route, or select a landing target." : hint;
+	return AccessFormat::List(parts) + "." + (hint.empty() ? string() : " " + hint);
 }
 
 
