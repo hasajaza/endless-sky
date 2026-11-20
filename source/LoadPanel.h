@@ -15,6 +15,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 
 #pragma once
 
+#include "accessibility/AccessPanelId.h"
 #include "Panel.h"
 
 #include "Point.h"
@@ -94,4 +95,6 @@ private:
 
 	std::string hoverFile;
 	std::string hoverFileTimestamp;
+
+	ES_ACCESSIBLE_PANEL(LoadPanel)
 };

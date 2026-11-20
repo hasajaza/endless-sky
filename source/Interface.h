@@ -111,6 +111,8 @@ private:
 		// Add any click handlers needed for this element. This will only be
 		// called if the element is visible and active.
 		virtual void Place(const Rectangle &bounds, Panel *panel) const;
+		// Accessibility: report buttons to the accessibility layer.
+		virtual void CaptureForAccessibility(const Rectangle &bounds, const Information &info, int state) const {}
 
 	protected:
 		AnchoredPoint from;
@@ -162,6 +164,8 @@ private:
 		// Add any click handlers needed for this element. This will only be
 		// called if the element is visible and active.
 		virtual void Place(const Rectangle &bounds, Panel *panel) const override;
+		virtual void CaptureForAccessibility(const Rectangle &bounds, const Information &info,
+			int state) const override;
 
 		// Fill in any undefined state colors.
 		void FinishLoadingColors();

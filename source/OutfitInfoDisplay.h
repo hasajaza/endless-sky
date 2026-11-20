@@ -66,4 +66,6 @@ private:
 	std::vector<std::string> requirementLabels;
 	std::vector<std::string> requirementValues;
 	int requirementsHeight = 0;
+
+	friend class AccessInspector;
 };

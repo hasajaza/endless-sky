@@ -44,6 +44,8 @@ public:
 	void SetTruncate(Truncate t);
 
 	int GetTextHeight(bool trailingBreak = true);
+	// Accessibility: the text currently shown.
+	const std::string &GetText() const { return text; }
 	int GetLongestLineWidth();
 
 	virtual void Validate(bool trailingBreak) override;

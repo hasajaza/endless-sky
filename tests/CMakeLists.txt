@@ -17,6 +17,7 @@ target_sources(EndlessSkyTests PRIVATE
 	unit/include/es-test.hpp
 	unit/include/logger-output.h
 	unit/include/output-capture.hpp
+	unit/src/accessibility/test_accessibility.cpp
 	unit/src/comparators/test_byGivenOrder.cpp
 	unit/src/comparators/test_byName.cpp
 	unit/src/helpers/datanode-factory.cpp

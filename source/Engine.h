@@ -313,6 +313,8 @@ private:
 	bool doFlash = false;
 	bool doEnterLabels = false;
 	bool doEnter = false;
+
+	friend class AccessInspector;
 	bool hadHostiles = false;
 
 	// A timer preventing out-of-ammo sounds from triggering constantly every frame when the fire key is held.

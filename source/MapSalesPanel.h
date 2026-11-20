@@ -15,6 +15,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 
 #pragma once
 
+#include "accessibility/AccessPanelId.h"
 #include "MapPanel.h"
 
 #include "ClickZone.h"
@@ -114,4 +115,6 @@ private:
 	int compare = -1;
 
 	LoadingCircle loadingCircle;
+
+	ES_ACCESSIBLE_PANEL(MapSalesPanel)
 };

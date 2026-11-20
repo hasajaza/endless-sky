@@ -15,6 +15,8 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 
 #include "UI.h"
 
+#include "accessibility/AccessCapture.h"
+
 #include "audio/Audio.h"
 #include "Command.h"
 #include "Panel.h"
@@ -129,8 +131,13 @@ void UI::DrawAll()
 		if((*--it)->IsFullScreen())
 			break;
 
+	AccessCapture::BeginFrame();
 	for( ; it != stack.end(); ++it)
+	{
+		AccessCapture::SetPanel(it->get());
 		(*it)->DoDraw();
+	}
+	AccessCapture::EndFrame();
 }
 
 

@@ -15,6 +15,8 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 
 #include "Interface.h"
 
+#include "accessibility/AccessCapture.h"
+
 #include "Angle.h"
 #include "DataNode.h"
 #include "text/DisplayText.h"
@@ -341,6 +343,7 @@ void Interface::Element::Draw(const Information &info, Panel *panel) const
 	// message explaining why the button is inactive.
 	if(panel)
 		Place(box, panel);
+	CaptureForAccessibility(box, info, state);
 
 	// Figure out how the element should be aligned within its bounding box.
 	Point nativeDimensions = NativeDimensions(info, state);
@@ -578,6 +581,16 @@ void Interface::TextElement::Place(const Rectangle &bounds, Panel *panel) const
 {
 	if(buttonKey && panel)
 		panel->AddZone(bounds, buttonKey);
+}
+
+
+
+void Interface::TextElement::CaptureForAccessibility(const Rectangle &bounds, const Information &info,
+	int state) const
+{
+	if(buttonKey)
+		AccessCapture::Button(GetString(info), buttonKey, state != Element::INACTIVE,
+			bounds.Left(), bounds.Top(), bounds.Width(), bounds.Height());
 }
 
 

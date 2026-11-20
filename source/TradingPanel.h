@@ -15,6 +15,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 
 #pragma once
 
+#include "accessibility/AccessPanelId.h"
 #include "Panel.h"
 
 class Planet;
@@ -61,4 +62,6 @@ private:
 	// Keep track of how much we sold and how much profit was made.
 	int tonsSold = 0;
 	int64_t profit = 0;
+
+	ES_ACCESSIBLE_PANEL(TradingPanel)
 };

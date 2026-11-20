@@ -15,6 +15,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 
 #pragma once
 
+#include "accessibility/AccessPanelId.h"
 #include "MapPanel.h"
 
 #include "BookEntry.h"
@@ -111,4 +112,6 @@ private:
 	double scroll = 0.;
 	mutable double maxCategoryScroll = 0.;
 	mutable double maxScroll = 0.;
+
+	ES_ACCESSIBLE_PANEL(LogbookPanel)
 };

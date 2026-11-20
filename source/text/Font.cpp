@@ -15,6 +15,8 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 
 #include "Font.h"
 
+#include "../accessibility/AccessCapture.h"
+
 #include "Alignment.h"
 #include "../Color.h"
 #include "DisplayText.h"
@@ -100,6 +102,9 @@ void Font::DrawAliased(const DisplayText &text, double x, double y, const Color 
 {
 	int width = -1;
 	const string truncText = TruncateText(text, width);
+	// Accessibility: record the full text, not the visually truncated copy.
+	AccessCapture::Text(text.GetText(), x, y, color);
+	AccessCapture::Suppress(true);
 	const auto &layout = text.GetLayout();
 	if(width >= 0)
 	{
@@ -109,6 +114,7 @@ void Font::DrawAliased(const DisplayText &text, double x, double y, const Color 
 			x += layout.width - width;
 	}
 	DrawAliased(truncText, x, y, color);
+	AccessCapture::Suppress(false);
 }
 
 
@@ -122,6 +128,7 @@ void Font::Draw(const string &str, const Point &point, const Color &color) const
 
 void Font::DrawAliased(const string &str, double x, double y, const Color &color) const
 {
+	AccessCapture::Text(str, x, y, color);
 	glUseProgram(shader->Object());
 	glBindTexture(GL_TEXTURE_2D, texture);
 	if(OpenGL::HasVaoSupport())

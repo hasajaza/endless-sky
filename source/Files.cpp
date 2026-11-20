@@ -144,6 +144,24 @@ void Files::Init(const char *const *argv)
 			resources = STANDARD_PATH / RESOURCE_PATH;
 #endif
 	}
+	// Accessibility package: an installer may record the location of the
+	// original game's resources in "resources-path.txt" next to the executable,
+	// so the accessible build can run from its own folder without touching the
+	// original installation.
+	if(!Exists(resources / "credits.txt") && Exists(resources / "resources-path.txt"))
+	{
+		string recorded = Read(resources / "resources-path.txt");
+		// Ignore a UTF-8 byte order mark written by some editors.
+		if(recorded.starts_with("\xEF\xBB\xBF"))
+			recorded.erase(0, 3);
+		while(!recorded.empty() && (recorded.back() == '\n' || recorded.back() == '\r' || recorded.back() == ' '))
+			recorded.pop_back();
+		// The file is written as UTF-8.
+		filesystem::path recordedPath(u8string(recorded.begin(), recorded.end()));
+		if(!recorded.empty() && Exists(recordedPath / "credits.txt"))
+			resources = recordedPath;
+	}
+
 	// If the resources are not here, search in the directories containing this
 	// one. This allows, for example, a Mac app that does not actually have the
 	// resources embedded within it.

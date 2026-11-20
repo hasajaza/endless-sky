@@ -15,6 +15,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 
 #pragma once
 
+#include "accessibility/AccessPanelId.h"
 #include "DialogPanel.h"
 
 #include "text/Format.h"
@@ -66,6 +67,8 @@ private:
 
 	std::function<void(std::optional<int>)> optionalIntFun;
 	std::function<void(std::optional<double>)> optionalDoubleFun;
+
+	ES_ACCESSIBLE_PANEL(OptionalInputDialogPanel)
 };
 
 

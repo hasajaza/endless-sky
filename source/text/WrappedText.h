@@ -78,6 +78,9 @@ public:
 	// Draw the text.
 	void Draw(const Point &topLeft, const Color &color) const;
 
+	// Accessibility: the unwrapped text most recently given to Wrap().
+	const std::string &OriginalText() const { return original; }
+
 
 private:
 	void Wrap();

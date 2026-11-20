@@ -15,6 +15,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 
 #include "MainPanel.h"
 
+#include "accessibility/Accessibility.h"
 #include "BoardingPanel.h"
 #include "comparators/ByGivenOrder.h"
 #include "CategoryList.h"
@@ -128,6 +129,9 @@ void MainPanel::Step()
 
 	if(isActive && !engine.IsPaused())
 		player.StepMissionTimers(GetUI());
+
+	// Accessibility: monitor flight while the calculation thread is idle.
+	Accessibility::FlightStep(engine, engine.Events(), isActive);
 
 	// Splice new events onto the eventQueue for (eventual) handling. No
 	// other classes use Engine::Events() after Engine::Step() completes.

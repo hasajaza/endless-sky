@@ -15,6 +15,8 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 
 #include "Messages.h"
 
+#include "accessibility/Accessibility.h"
+
 #include "DataWriter.h"
 #include "GameData.h"
 
@@ -51,6 +53,8 @@ void Messages::Add(const Message &message)
 
 	if(category->LogOnly())
 		return;
+	// Accessibility: speak displayed messages (thread safe).
+	Accessibility::OnMessage(text, category->TrueName());
 	lock_guard<mutex> lock(incomingMutex);
 	incoming.emplace_back(text, category);
 }

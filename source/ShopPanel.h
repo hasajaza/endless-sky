@@ -15,6 +15,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 
 #pragma once
 
+#include "accessibility/AccessPanelId.h"
 #include "Panel.h"
 
 #include "ClickZone.h"
@@ -259,4 +260,6 @@ private:
 	const Color &back;
 
 	bool checkedHelp = false;
+
+	ES_ACCESSIBLE_PANEL(ShopPanel)
 };

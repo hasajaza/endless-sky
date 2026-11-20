@@ -15,6 +15,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 
 #pragma once
 
+#include "accessibility/AccessPanelId.h"
 #include "MapSalesPanel.h"
 
 #include "OutfitInfoDisplay.h"
@@ -66,4 +67,6 @@ private:
 
 	OutfitInfoDisplay selectedInfo;
 	OutfitInfoDisplay compareInfo;
+
+	ES_ACCESSIBLE_PANEL(MapOutfitterPanel)
 };

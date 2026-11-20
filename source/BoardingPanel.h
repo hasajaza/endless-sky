@@ -15,6 +15,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 
 #pragma once
 
+#include "accessibility/AccessPanelId.h"
 #include "Panel.h"
 
 #include "CaptureOdds.h"
@@ -157,4 +158,6 @@ private:
 
 	// Whether or not the ship can be captured.
 	bool canCapture = false;
+
+	ES_ACCESSIBLE_PANEL(BoardingPanel)
 };

@@ -15,6 +15,8 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 
 #include "WrappedText.h"
 
+#include "../accessibility/AccessCapture.h"
+
 #include "DisplayText.h"
 #include "Font.h"
 
@@ -174,6 +176,11 @@ void WrappedText::Draw(const Point &topLeft, const Color &color) const
 {
 	if(words.empty())
 		return;
+
+	// Accessibility: capture the text as one block rather than word by word.
+	AccessCapture::Text(original, topLeft.X(), topLeft.Y(), color);
+	AccessCapture::Suppress(true);
+	struct Resume { ~Resume() { AccessCapture::Suppress(false); } } resume;
 
 	if(truncate == Truncate::NONE)
 		for(const Word &w : words)

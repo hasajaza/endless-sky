@@ -15,6 +15,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 
 #pragma once
 
+#include "accessibility/AccessPanelId.h"
 #include "Panel.h"
 
 class PlayerInfo;
@@ -42,4 +43,6 @@ private:
 
 	int maxHire;
 	int maxFire;
+
+	ES_ACCESSIBLE_PANEL(HiringPanel)
 };

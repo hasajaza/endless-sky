@@ -15,6 +15,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 
 #pragma once
 
+#include "accessibility/AccessPanelId.h"
 #include "MapSalesPanel.h"
 
 #include "ShipInfoDisplay.h"
@@ -71,4 +72,6 @@ private:
 
 	ShipInfoDisplay selectedInfo;
 	ShipInfoDisplay compareInfo;
+
+	ES_ACCESSIBLE_PANEL(MapShipyardPanel)
 };

@@ -15,6 +15,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 
 #pragma once
 
+#include "accessibility/AccessPanelId.h"
 #include "ShopPanel.h"
 
 #include "Sale.h"
@@ -69,4 +70,6 @@ private:
 	// Only do this once per opening of the shipyard.
 	int initialFleetUsage;
 	bool hasDoneFleetCapacityWarning = false;
+
+	ES_ACCESSIBLE_PANEL(ShipyardPanel)
 };

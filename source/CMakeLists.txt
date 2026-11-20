@@ -14,6 +14,32 @@ endif()
 # Every source file (and header file) should be listed here, except main.cpp.
 # If you add a new file, add it to this list.
 target_sources(EndlessSkyLib PRIVATE
+	accessibility/AccessAudio.cpp
+	accessibility/AccessAudio.h
+	accessibility/AccessCapture.cpp
+	accessibility/AccessCapture.h
+	accessibility/AccessContext.h
+	accessibility/AccessFlight.cpp
+	accessibility/AccessFlight.h
+	accessibility/AccessFormat.cpp
+	accessibility/AccessFormat.h
+	accessibility/AccessInspector.h
+	accessibility/AccessKeys.cpp
+	accessibility/AccessKeys.h
+	accessibility/AccessPanelId.h
+	accessibility/AccessReader.h
+	accessibility/AccessReaders.cpp
+	accessibility/AccessReaders.h
+	accessibility/AccessSpeech.cpp
+	accessibility/AccessSpeech.h
+	accessibility/Accessibility.cpp
+	accessibility/Accessibility.h
+	accessibility/ReadersDialog.cpp
+	accessibility/ReadersInfo.cpp
+	accessibility/ReadersMap.cpp
+	accessibility/ReadersMenu.cpp
+	accessibility/ReadersPlanet.cpp
+	accessibility/ReadersShop.cpp
 	AI.cpp
 	AI.h
 	Account.cpp

@@ -75,4 +75,6 @@ private:
 	std::vector<std::string> saleLabels;
 	std::vector<std::string> saleValues;
 	int saleHeight = 0;
+
+	friend class AccessInspector;
 };

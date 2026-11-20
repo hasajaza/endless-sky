@@ -15,6 +15,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 
 #pragma once
 
+#include "accessibility/AccessPanelId.h"
 #include "DialogPanel.h"
 
 #include <string>
@@ -34,4 +35,6 @@ public:
 private:
 	explicit ShipNameDialogPanel(DialogInit &init);
 	bool RandomName(const std::string &);
+
+	ES_ACCESSIBLE_PANEL(ShipNameDialogPanel)
 };

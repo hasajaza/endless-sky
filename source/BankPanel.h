@@ -15,6 +15,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 
 #pragma once
 
+#include "accessibility/AccessPanelId.h"
 #include "Panel.h"
 
 #include <string>
@@ -55,4 +56,6 @@ private:
 
 	bool mergedMortgages = false;
 	int mortgageRows = 0;
+
+	ES_ACCESSIBLE_PANEL(BankPanel)
 };

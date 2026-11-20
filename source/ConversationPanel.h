@@ -15,6 +15,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 
 #pragma once
 
+#include "accessibility/AccessPanelId.h"
 #include "Panel.h"
 
 #include "text/WrappedText.h"
@@ -96,6 +97,9 @@ private:
 		// Get the "center point" of this paragraph. This is for drawing a
 		// highlight under paragraphs that represent choices.
 		Point Center() const;
+		// Accessibility: the text of this paragraph.
+		const std::string &Text() const { return wrap.OriginalText(); }
+
 		// Draw this paragraph at the given point, and return the point that the
 		// next paragraph below this one should be drawn at.
 		Point Draw(Point point, const Color &color) const;
@@ -161,6 +165,8 @@ private:
 	// Whether the mouse moved in the current frame.
 	bool isHovering = false;
 	Point hoverPoint;
+
+	ES_ACCESSIBLE_PANEL(ConversationPanel)
 };
 
 

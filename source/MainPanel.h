@@ -15,6 +15,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 
 #pragma once
 
+#include "accessibility/AccessPanelId.h"
 #include "Panel.h"
 
 #include "Command.h"
@@ -88,4 +89,6 @@ private:
 	bool hasControl = false;
 	bool canClick = false;
 	bool canDrag = false;
+
+	ES_ACCESSIBLE_PANEL(MainPanel)
 };

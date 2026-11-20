@@ -15,6 +15,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 
 #pragma once
 
+#include "accessibility/AccessPanelId.h"
 #include "Panel.h"
 
 #include "Information.h"
@@ -62,4 +63,6 @@ private:
 	bool hasPortrait = false;
 	Information newsInfo;
 	std::shared_ptr<TextArea> newsMessage;
+
+	ES_ACCESSIBLE_PANEL(SpaceportPanel)
 };

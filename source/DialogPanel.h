@@ -15,6 +15,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 
 #pragma once
 
+#include "accessibility/AccessPanelId.h"
 #include "Panel.h"
 
 #include "text/Format.h"
@@ -263,6 +264,8 @@ protected:
 
 	const System *system = nullptr;
 	PlayerInfo *player = nullptr;
+
+	ES_ACCESSIBLE_PANEL(DialogPanel)
 };
 
 

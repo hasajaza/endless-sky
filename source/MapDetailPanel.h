@@ -15,6 +15,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 
 #pragma once
 
+#include "accessibility/AccessPanelId.h"
 #include "MapPanel.h"
 
 #include "ClickZone.h"
@@ -97,4 +98,6 @@ private:
 	int descriptionXOffset;
 
 	std::vector<ClickZone<int>> clickZones;
+
+	ES_ACCESSIBLE_PANEL(MapDetailPanel)
 };

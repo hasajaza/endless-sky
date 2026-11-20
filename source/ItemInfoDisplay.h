@@ -75,4 +75,6 @@ protected:
 	mutable Tooltip tooltip;
 	bool hasHover = false;
 	mutable bool hoveringTooltip = false;
+
+	friend class AccessInspector;
 };

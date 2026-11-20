@@ -15,6 +15,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 
 #pragma once
 
+#include "accessibility/AccessPanelId.h"
 #include "Panel.h"
 
 #include "LoadingCircle.h"
@@ -46,4 +47,6 @@ private:
 
 	double progress = 0;
 	LoadingCircle loadingCircle;
+
+	ES_ACCESSIBLE_PANEL(GameLoadingPanel)
 };

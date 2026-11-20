@@ -1,0 +1,1394 @@
+/* AccessFlight.cpp
+Copyright (c) 2026 by the Endless Sky Accessibility contributors
+
+Endless Sky is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later version.
+
+Endless Sky is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see <https://www.gnu.org/licenses/>.
+*/
+
+#include "AccessFlight.h"
+
+#include "AccessAudio.h"
+#include "AccessContext.h"
+#include "AccessFormat.h"
+#include "AccessInspector.h"
+#include "AccessSpeech.h"
+
+#include "../Account.h"
+#include "../AsteroidField.h"
+#include "../CargoHold.h"
+#include "../Command.h"
+#include "../Date.h"
+#include "../Engine.h"
+#include "../Flotsam.h"
+#include "../GameData.h"
+#include "../Government.h"
+#include "../Hardpoint.h"
+#include "../Information.h"
+#include "../Minable.h"
+#include "../Mission.h"
+#include "../Outfit.h"
+#include "../Personality.h"
+#include "../Planet.h"
+#include "../PlayerInfo.h"
+#include "../Point.h"
+#include "../Port.h"
+#include "../Preferences.h"
+#include "../Projectile.h"
+#include "../Ship.h"
+#include "../ShipEvent.h"
+#include "../ShipJumpNavigation.h"
+#include "../ScanType.h"
+#include "../StellarObject.h"
+#include "../System.h"
+#include "../UI.h"
+#include "../Weapon.h"
+#include "../ship/ShipAICache.h"
+#include "../text/Format.h"
+
+#include <algorithm>
+#include <cmath>
+#include <map>
+#include <set>
+
+using namespace std;
+
+namespace {
+	// Monitor state.
+	const System *lastSystem = nullptr;
+	const Ship *lastFlagship = nullptr;
+	weak_ptr<Ship> lastTargetShip;
+	bool hadTargetShip = false;
+	const StellarObject *lastTargetStellar = nullptr;
+	weak_ptr<Minable> lastTargetAsteroid;
+	bool hadTargetAsteroid = false;
+	const System *lastTargetSystem = nullptr;
+	double lastShields = 1.;
+	double lastHull = 1.;
+	int shieldBand = 4;
+	int hullBand = 4;
+	bool wasDisabled = false;
+	bool warnedFuel = false;
+	bool wasHyperspacing = false;
+	int inRangeState = -1;
+	int damageCueTimer = 0;
+	int attackTimer = 0;
+	int missileTimer = 0;
+	set<const Ship *> knownAttackers;
+	int step = 0;
+
+	// Secondary weapons and pause state.
+	set<const Outfit *> lastSecondary;
+	map<const Outfit *, int> lastAmmo;
+	bool secondaryKnown = false;
+	bool wasPaused = false;
+
+	// Beacon.
+	bool beaconOn = false;
+	int beaconTimer = 0;
+
+	PlayerInfo &Player()
+	{
+		return AccessContext::Player();
+	}
+
+	double Speed(const Ship &ship)
+	{
+		// Velocities are per frame; the game runs at 60 frames per second.
+		return ship.Velocity().Length() * 60.;
+	}
+
+	// Distance phrase. Exact figures require a range finder for ships; the
+	// rest of the time the distance is rounded the way a pilot would estimate
+	// it from the screen.
+	string RoughDistance(double distance, bool exact)
+	{
+		if(exact)
+			return AccessFormat::Distance(distance);
+		double rounded = distance < 1000. ? round(distance / 50.) * 50. : round(distance / 100.) * 100.;
+		return "about " + AccessFormat::Distance(rounded);
+	}
+
+	string Where(const Ship &flagship, const Point &position, bool exact = true)
+	{
+		Point delta = position - flagship.Position();
+		double degrees = AccessFormat::RelativeDegrees(flagship.Facing(), delta);
+		return AccessFormat::Bearing(degrees) + ", " + RoughDistance(delta.Length(), exact);
+	}
+
+	string StellarName(const StellarObject &object)
+	{
+		if(!object.DisplayName().empty() && object.GetPlanet())
+			return object.DisplayName();
+		if(object.IsStar())
+			return "star";
+		if(object.IsStation())
+			return "station";
+		if(object.IsMoon())
+			return "moon";
+		return "planet";
+	}
+
+	string StellarKind(const StellarObject &object)
+	{
+		if(object.IsStar())
+			return "star";
+		if(object.GetPlanet())
+			return object.GetPlanet()->Noun();
+		if(object.IsStation())
+			return "station";
+		if(object.IsMoon())
+			return "moon";
+		return "planet";
+	}
+
+	// Landing status as the HUD would describe it.
+	string LandingStatus(const StellarObject &object, const Ship &flagship)
+	{
+		const Planet *planet = object.GetPlanet();
+		if(!planet || !object.HasValidPlanet())
+		{
+			const string &message = object.LandingMessage();
+			return message.empty() ? "cannot land" : AccessFormat::TrimPeriod(message);
+		}
+		if(!planet->IsAccessible(&flagship))
+			return "cannot land";
+		if(planet->IsWormhole())
+			return "wormhole";
+		if(!planet->CanLand(flagship))
+			return "landing refused";
+		string status = "can land";
+		if(planet->HasServices() && planet->GetPort().CanRecharge(Port::RechargeType::Fuel, true))
+			status += ", fuel available";
+		return status;
+	}
+
+	enum class Kind { YOURS, FRIENDLY, HOSTILE_ATTACKING, HOSTILE, DISABLED };
+
+	Kind Classify(const Ship &ship)
+	{
+		if(ship.IsDisabled())
+			return Kind::DISABLED;
+		if(ship.IsYours() || (ship.GetPersonality().IsEscort() && !ship.GetGovernment()->IsEnemy()))
+			return Kind::YOURS;
+		if(!ship.GetGovernment()->IsEnemy())
+			return Kind::FRIENDLY;
+		const auto target = ship.GetTargetShip();
+		if(target && target->IsYours())
+			return Kind::HOSTILE_ATTACKING;
+		return Kind::HOSTILE;
+	}
+
+	string KindName(Kind kind)
+	{
+		switch(kind)
+		{
+			case Kind::YOURS: return "your fleet";
+			case Kind::FRIENDLY: return "friendly";
+			case Kind::HOSTILE_ATTACKING: return "hostile, attacking you";
+			case Kind::HOSTILE: return "hostile";
+			default: return "disabled";
+		}
+	}
+
+	// Ships the player can see: in this system, and not cloaked (unless yours).
+	vector<shared_ptr<Ship>> VisibleShips(const Engine &engine)
+	{
+		vector<shared_ptr<Ship>> result;
+		const Ship *flagship = Player().Flagship();
+		const System *system = Player().GetSystem();
+		for(const shared_ptr<Ship> &ship : AccessInspector::Ships(engine))
+		{
+			if(ship.get() == flagship || ship->GetSystem() != system || ship->IsDestroyed())
+				continue;
+			if(ship->IsCloaked() && !ship->IsYours())
+				continue;
+			if(!ship->IsTargetable() && !ship->IsYours() && !ship->IsDisabled())
+				continue;
+			result.push_back(ship);
+		}
+		return result;
+	}
+
+	template<class T>
+	void SortByDistance(vector<T> &list, const Point &from)
+	{
+		sort(list.begin(), list.end(), [&from](const T &a, const T &b)
+		{
+			return a->Position().Distance(from) < b->Position().Distance(from);
+		});
+	}
+
+	bool HasRangeFinder(const Ship &target)
+	{
+		return Player().CanScan(target.shared_from_this()) & ScanType::RANGE;
+	}
+
+	// Select the given object the way a left click would.
+	bool SelectShip(const weak_ptr<Ship> &weak)
+	{
+		shared_ptr<Ship> ship = weak.lock();
+		Ship *flagship = Player().Flagship();
+		if(!ship || !flagship || !ship->IsTargetable() || ship->GetSystem() != Player().GetSystem())
+		{
+			AccessSpeech::Say("That ship can no longer be targeted.", SpeechPriority::REQUESTED);
+			return false;
+		}
+		UI::PlaySound(UI::UISound::TARGET);
+		flagship->SetTargetShip(ship);
+		if(ship->IsYours())
+			Player().SelectEscort(ship.get(), false);
+		return true;
+	}
+
+	bool SelectStellar(const StellarObject *object)
+	{
+		Ship *flagship = Player().Flagship();
+		if(!flagship || !object || !object->GetPlanet() || !object->HasValidPlanet()
+				|| !object->GetPlanet()->IsAccessible(flagship))
+		{
+			AccessSpeech::Say("You cannot select that as a landing target.", SpeechPriority::REQUESTED);
+			return false;
+		}
+		Engine *engine = AccessContext::GetEngine();
+		UI::PlaySound(UI::UISound::TARGET);
+		flagship->SetTargetStellar(object);
+		if(engine && flagship->Commands().Has(Command::LAND))
+			AccessInspector::GetAI(*engine).DisengageAutopilot();
+		return true;
+	}
+
+	bool SelectAsteroid(const weak_ptr<Minable> &weak)
+	{
+		shared_ptr<Minable> minable = weak.lock();
+		Ship *flagship = Player().Flagship();
+		if(!minable || !flagship)
+			return false;
+		if(!Player().HasScanner(ScanType::ASTEROID) || !(Player().CanScan(minable) & ScanType::ASTEROID))
+		{
+			AccessSpeech::Say("You need an asteroid scanner in range to select asteroids.",
+				SpeechPriority::REQUESTED);
+			return false;
+		}
+		UI::PlaySound(UI::UISound::TARGET);
+		flagship->SetTargetAsteroid(minable);
+		return true;
+	}
+
+	string ShipLine(const Ship &ship, const Ship &flagship)
+	{
+		string line = AccessFlight::DescribeShip(ship, true);
+		line += ", " + Where(flagship, ship.Position(), HasRangeFinder(ship));
+		return line;
+	}
+
+	string AsteroidName(const shared_ptr<const Minable> &minable)
+	{
+		// The asteroid's type is shown once it can be scanned; the HUD shows it
+		// as "<name> <noun>" when it is targeted.
+		if(Player().CanScan(minable) & ScanType::ASTEROID)
+			return minable->DisplayName() + " " + minable->Noun();
+		return "minable asteroid";
+	}
+
+	// Announce a newly selected target.
+	void AnnounceTargets(Ship &flagship)
+	{
+		shared_ptr<Ship> target = flagship.GetTargetShip();
+		bool hasTarget = static_cast<bool>(target);
+		if(target != lastTargetShip.lock() || hasTarget != hadTargetShip)
+		{
+			if(target)
+				AccessSpeech::Say("Target: " + ShipLine(*target, flagship), SpeechPriority::FOCUS);
+			else if(hadTargetShip)
+				AccessSpeech::Say("No ship targeted.", SpeechPriority::INFO);
+			lastTargetShip = target;
+			hadTargetShip = hasTarget;
+			inRangeState = -1;
+		}
+
+		const StellarObject *stellar = flagship.GetTargetStellar();
+		if(stellar != lastTargetStellar)
+		{
+			if(stellar)
+				AccessSpeech::Say("Navigation target: " + StellarName(*stellar) + ", " + StellarKind(*stellar)
+					+ ", " + LandingStatus(*stellar, flagship) + ", " + Where(flagship, stellar->Position()),
+					SpeechPriority::FOCUS);
+			lastTargetStellar = stellar;
+		}
+
+		shared_ptr<Minable> asteroid = flagship.GetTargetAsteroid();
+		bool hasAsteroid = static_cast<bool>(asteroid);
+		if(asteroid != lastTargetAsteroid.lock() || hasAsteroid != hadTargetAsteroid)
+		{
+			if(asteroid)
+				AccessSpeech::Say("Asteroid target: " + AsteroidName(asteroid) + ", "
+					+ Where(flagship, asteroid->Position()), SpeechPriority::FOCUS);
+			lastTargetAsteroid = asteroid;
+			hadTargetAsteroid = hasAsteroid;
+		}
+
+		const System *system = flagship.GetTargetSystem();
+		if(system != lastTargetSystem)
+		{
+			if(system && !flagship.IsEnteringHyperspace())
+			{
+				string name = Player().KnowsName(*system) ? system->DisplayName() + " system" : "unexplored system";
+				AccessSpeech::Say("Hyperspace target: " + name, SpeechPriority::INFO);
+			}
+			lastTargetSystem = system;
+		}
+	}
+
+	int Band(double fraction)
+	{
+		if(fraction <= .1)
+			return 0;
+		if(fraction <= .25)
+			return 1;
+		if(fraction <= .5)
+			return 2;
+		if(fraction <= .75)
+			return 3;
+		return 4;
+	}
+
+	void MonitorCondition(Ship &flagship)
+	{
+		double shields = flagship.ShieldFraction();
+		double hull = flagship.HullFraction();
+
+		// Damage earcons, rate limited.
+		if(damageCueTimer)
+			--damageCueTimer;
+		if(AccessContext::AudioCues() && !damageCueTimer)
+		{
+			if(hull < lastHull - .002)
+			{
+				AccessAudio::Play(AccessAudio::Cue::HULL_HIT);
+				damageCueTimer = 15;
+			}
+			else if(shields < lastShields - .002)
+			{
+				AccessAudio::Play(AccessAudio::Cue::SHIELD_HIT);
+				damageCueTimer = 15;
+			}
+		}
+
+		int newShieldBand = Band(shields);
+		if(newShieldBand < shieldBand && newShieldBand < 3 && flagship.Attributes().Get("shields"))
+		{
+			static const char *TEXT[3] = {"Shields critical", "Shields at 25 percent", "Shields at half"};
+			AccessSpeech::Say(TEXT[newShieldBand], newShieldBand == 0 ? SpeechPriority::CRITICAL
+				: SpeechPriority::IMPORTANT);
+		}
+		// Bands only reset once the value has recovered well above them.
+		if(newShieldBand < shieldBand || Band(max(0., shields - .08)) > shieldBand)
+			shieldBand = newShieldBand;
+
+		int newHullBand = Band(hull);
+		if(newHullBand < hullBand && newHullBand < 3)
+		{
+			static const char *TEXT[3] = {"Hull critical", "Hull at 25 percent", "Hull at half"};
+			AccessSpeech::Say(TEXT[newHullBand], newHullBand <= 1 ? SpeechPriority::CRITICAL
+				: SpeechPriority::IMPORTANT);
+		}
+		if(newHullBand < hullBand || Band(max(0., hull - .08)) > hullBand)
+			hullBand = newHullBand;
+
+		bool disabled = flagship.IsDisabled();
+		if(disabled && !wasDisabled)
+			AccessSpeech::Say("Your flagship is disabled.", SpeechPriority::CRITICAL);
+		else if(!disabled && wasDisabled)
+			AccessSpeech::Say("Your flagship is operational again.", SpeechPriority::IMPORTANT);
+		wasDisabled = disabled;
+
+		lastShields = shields;
+		lastHull = hull;
+
+		// Fuel for at least one jump.
+		double jumpFuel = flagship.JumpNavigation().JumpFuel();
+		bool lowFuel = jumpFuel > 0. && flagship.Attributes().Get("fuel capacity")
+			&& flagship.FuelFraction() * flagship.Attributes().Get("fuel capacity") < jumpFuel;
+		if(lowFuel && !warnedFuel)
+			AccessSpeech::Say("Not enough fuel for a hyperspace jump.", SpeechPriority::IMPORTANT);
+		warnedFuel = lowFuel;
+
+		bool hyperspacing = flagship.IsHyperspacing();
+		if(hyperspacing && !wasHyperspacing)
+			AccessSpeech::Say("Entering hyperspace.", SpeechPriority::INFO);
+		wasHyperspacing = hyperspacing;
+	}
+
+	void MonitorThreats(const Engine &engine, Ship &flagship)
+	{
+		if(attackTimer)
+			--attackTimer;
+		if(missileTimer)
+			--missileTimer;
+
+		// Hostile ships that have started attacking the player's fleet.
+		vector<shared_ptr<Ship>> newAttackers;
+		set<const Ship *> attackers;
+		for(const shared_ptr<Ship> &ship : VisibleShips(engine))
+			if(Classify(*ship) == Kind::HOSTILE_ATTACKING)
+			{
+				attackers.insert(ship.get());
+				if(!knownAttackers.contains(ship.get()))
+					newAttackers.push_back(ship);
+			}
+		if(!newAttackers.empty() && !attackTimer)
+		{
+			SortByDistance(newAttackers, flagship.Position());
+			string text;
+			if(newAttackers.size() == 1)
+				text = "Hostile " + ShipLine(*newAttackers.front(), flagship) + ", attacking";
+			else
+				text = to_string(newAttackers.size()) + " hostile ships attacking, nearest "
+					+ ShipLine(*newAttackers.front(), flagship);
+			AccessSpeech::Say(text, SpeechPriority::IMPORTANT);
+			attackTimer = 120;
+			for(const auto &ship : newAttackers)
+				knownAttackers.insert(ship.get());
+		}
+		// Forget ships that stopped attacking (so a renewed attack is announced).
+		for(auto it = knownAttackers.begin(); it != knownAttackers.end(); )
+		{
+			if(!attackers.contains(*it))
+				it = knownAttackers.erase(it);
+			else
+				++it;
+		}
+
+		// Incoming guided missiles aimed at the flagship.
+		if(!missileTimer)
+		{
+			const Projectile *closest = nullptr;
+			double closestDistance = 1e9;
+			int count = 0;
+			for(const Projectile &projectile : AccessInspector::Projectiles(engine))
+			{
+				if(projectile.IsDead() || projectile.Target() != &flagship || !projectile.MissileStrength())
+					continue;
+				++count;
+				double distance = projectile.Position().Distance(flagship.Position());
+				if(distance < closestDistance)
+				{
+					closestDistance = distance;
+					closest = &projectile;
+				}
+			}
+			if(closest)
+			{
+				string text = count == 1 ? "Incoming missile, " : to_string(count) + " incoming missiles, nearest ";
+				text += Where(flagship, closest->Position(), false);
+				AccessSpeech::Say(text, SpeechPriority::IMPORTANT);
+				missileTimer = 240;
+			}
+		}
+	}
+
+	void MonitorRange(Ship &flagship)
+	{
+		shared_ptr<Ship> target = flagship.GetTargetShip();
+		if(!target || target->GetSystem() != flagship.GetSystem() || !target->IsTargetable()
+				|| !target->GetGovernment()->IsEnemy())
+		{
+			inRangeState = -1;
+			return;
+		}
+		double range = max(flagship.GetAICache().GunRange(), flagship.GetAICache().TurretRange());
+		if(range <= 0.)
+			return;
+		double distance = target->Position().Distance(flagship.Position());
+		int state = inRangeState;
+		if(distance < range * .97)
+			state = 1;
+		else if(distance > range * 1.05)
+			state = 0;
+		if(state != inRangeState && inRangeState != -1)
+		{
+			if(state == 1)
+			{
+				if(AccessContext::AudioCues())
+					AccessAudio::Play(AccessAudio::Cue::IN_RANGE);
+				if(AccessSpeech::Verbosity() >= 1)
+					AccessSpeech::Say("Target in weapons range.", SpeechPriority::INFO);
+			}
+			else
+				AccessSpeech::Say("Target out of range.", SpeechPriority::INFO);
+		}
+		else if(inRangeState == -1 && state != -1)
+		{
+			// First evaluation after selecting a target: silent.
+		}
+		inRangeState = state;
+	}
+
+	void HandleEvents(const list<ShipEvent> &events, Ship &flagship)
+	{
+		shared_ptr<Ship> target = flagship.GetTargetShip();
+		for(const ShipEvent &event : events)
+		{
+			const shared_ptr<Ship> &victim = event.Target();
+			if(!victim)
+				continue;
+			int type = event.Type();
+			bool isTarget = (victim == target);
+			bool isOurs = victim->IsYours();
+			string name = victim->GivenName().empty() ? victim->DisplayModelName() : victim->GivenName();
+			if(type & ShipEvent::DESTROY)
+			{
+				if(isOurs && victim.get() != &flagship)
+					AccessSpeech::Say("Your ship " + name + " was destroyed.", SpeechPriority::IMPORTANT);
+				else if(isTarget)
+					AccessSpeech::Say("Target destroyed.", SpeechPriority::IMPORTANT);
+			}
+			else if(type & ShipEvent::DISABLE)
+			{
+				if(isOurs && victim.get() != &flagship)
+					AccessSpeech::Say("Your ship " + name + " was disabled.", SpeechPriority::IMPORTANT);
+				else if(isTarget)
+					AccessSpeech::Say("Target disabled. It can now be boarded.", SpeechPriority::IMPORTANT);
+			}
+		}
+	}
+
+	string SecondaryText(const Ship &flagship, const set<const Outfit *> &selected)
+	{
+		if(selected.empty())
+			return "No secondary weapon selected";
+		vector<string> names;
+		for(const Outfit *outfit : selected)
+		{
+			string name = outfit->DisplayName();
+			const Weapon *weapon = outfit->GetWeapon().get();
+			if(weapon && weapon->Ammo())
+				name += ", " + to_string(flagship.OutfitCount(weapon->Ammo())) + " " + weapon->Ammo()->DisplayName();
+			names.push_back(name);
+		}
+		return "Secondary weapon: " + AccessFormat::List(names);
+	}
+
+	void MonitorWeapons(const Engine &engine, Ship &flagship)
+	{
+		const set<const Outfit *> &selected = Player().SelectedSecondaryWeapons();
+		if(secondaryKnown && selected != lastSecondary)
+			AccessSpeech::Say(SecondaryText(flagship, selected), SpeechPriority::FOCUS);
+		lastSecondary = selected;
+
+		// Running out of ammunition for a selected weapon.
+		for(const Outfit *outfit : selected)
+		{
+			const Weapon *weapon = outfit->GetWeapon().get();
+			if(!weapon || !weapon->Ammo())
+				continue;
+			int count = flagship.OutfitCount(weapon->Ammo());
+			auto it = lastAmmo.find(weapon->Ammo());
+			if(secondaryKnown && it != lastAmmo.end() && it->second > 0 && count == 0)
+				AccessSpeech::Say("Out of " + weapon->Ammo()->DisplayName() + ".", SpeechPriority::IMPORTANT);
+			lastAmmo[weapon->Ammo()] = count;
+		}
+		secondaryKnown = true;
+
+		bool paused = engine.IsPaused();
+		if(paused != wasPaused)
+			AccessSpeech::Say(paused ? "Paused." : "Resumed.", SpeechPriority::FOCUS);
+		wasPaused = paused;
+	}
+
+	void UpdateBeacon(Ship &flagship)
+	{
+		if(!beaconOn || !AccessContext::AudioCues())
+			return;
+		if(beaconTimer > 0)
+		{
+			--beaconTimer;
+			return;
+		}
+		Point position;
+		bool found = false;
+		shared_ptr<Ship> target = flagship.GetTargetShip();
+		if(target && target->GetSystem() == flagship.GetSystem() && target->IsTargetable())
+		{
+			position = target->Position();
+			found = true;
+		}
+		else if(flagship.GetTargetStellar())
+		{
+			position = flagship.GetTargetStellar()->Position();
+			found = true;
+		}
+		else if(flagship.GetTargetAsteroid())
+		{
+			position = flagship.GetTargetAsteroid()->Position();
+			found = true;
+		}
+		else if(flagship.GetTargetSystem() && flagship.GetSystem())
+		{
+			// Direction of the hyperspace link, far away.
+			position = flagship.Position()
+				+ (flagship.GetTargetSystem()->Position() - flagship.GetSystem()->Position()).Unit() * 100000.;
+			found = true;
+		}
+		if(!found)
+		{
+			beaconTimer = 60;
+			return;
+		}
+		Point delta = position - flagship.Position();
+		double distance = delta.Length();
+		double degrees = AccessFormat::RelativeDegrees(flagship.Facing(), delta);
+		double closeness = max(0., min(1., 1. - distance / 6000.));
+		AccessAudio::Play(AccessAudio::Cue::BEACON, degrees, closeness);
+		// Faster pings when close or when nearly lined up.
+		int interval = 18 + static_cast<int>(42. * (1. - closeness));
+		if(fabs(degrees) < 6.)
+			interval = min(interval, 20);
+		beaconTimer = interval;
+	}
+
+	void Reset()
+	{
+		knownAttackers.clear();
+		lastTargetShip.reset();
+		hadTargetShip = false;
+		lastTargetStellar = nullptr;
+		lastTargetAsteroid.reset();
+		hadTargetAsteroid = false;
+		lastTargetSystem = nullptr;
+		inRangeState = -1;
+		secondaryKnown = false;
+		lastAmmo.clear();
+	}
+
+	string Fraction(double value)
+	{
+		return AccessFormat::Percent(value);
+	}
+}
+
+
+
+void AccessFlight::Step(Engine &engine, const list<ShipEvent> &events, bool isActive)
+{
+	++step;
+	PlayerInfo &player = Player();
+	Ship *flagship = player.Flagship();
+	if(!player.IsLoaded() || !flagship || player.IsDead())
+	{
+		lastFlagship = nullptr;
+		return;
+	}
+	if(flagship != lastFlagship || player.GetSystem() != lastSystem)
+	{
+		bool newShip = flagship != lastFlagship;
+		Reset();
+		// Do not announce whatever happened to be targeted on arrival.
+		lastTargetShip = flagship->GetTargetShip();
+		hadTargetShip = static_cast<bool>(flagship->GetTargetShip());
+		lastTargetStellar = flagship->GetTargetStellar();
+		lastTargetAsteroid = flagship->GetTargetAsteroid();
+		hadTargetAsteroid = static_cast<bool>(flagship->GetTargetAsteroid());
+		lastTargetSystem = flagship->GetTargetSystem();
+		lastSystem = player.GetSystem();
+		lastFlagship = flagship;
+		if(newShip)
+		{
+			lastShields = flagship->ShieldFraction();
+			lastHull = flagship->HullFraction();
+			shieldBand = Band(lastShields);
+			hullBand = Band(lastHull);
+			wasDisabled = flagship->IsDisabled();
+		}
+	}
+	// Only monitor while the player is actually flying.
+	if(player.GetPlanet() || !isActive)
+		return;
+
+	AnnounceTargets(*flagship);
+	MonitorWeapons(engine, *flagship);
+	MonitorCondition(*flagship);
+	MonitorThreats(engine, *flagship);
+	MonitorRange(*flagship);
+	HandleEvents(events, *flagship);
+	UpdateBeacon(*flagship);
+}
+
+
+
+string AccessFlight::DescribeShip(const Ship &ship, bool brief)
+{
+	string name = ship.GivenName();
+	string model = ship.DisplayModelName();
+	string text = name.empty() ? model : name + ", " + model;
+	const Government *gov = ship.GetGovernment();
+	if(!ship.IsYours() && gov)
+		text += ", " + gov->DisplayName();
+	text += ", " + KindName(Classify(ship));
+	if(ship.GetPersonality().IsTarget())
+		text += ", mission target";
+	if(!brief && ship.IsTargetable())
+	{
+		text += ", shields " + Fraction(ship.ShieldFraction()) + ", hull " + Fraction(ship.HullFraction());
+	}
+	return text;
+}
+
+
+
+string AccessFlight::Location()
+{
+	PlayerInfo &player = Player();
+	if(!player.IsLoaded() || !player.GetSystem())
+		return "No pilot is loaded.";
+	const System &system = *player.GetSystem();
+	string text = "In the " + system.DisplayName() + " system";
+	if(system.GetGovernment())
+		text += ", " + system.GetGovernment()->DisplayName() + " territory";
+	text += ". Date " + player.GetDate().ToString() + ".";
+	if(player.GetPlanet())
+	{
+		text += " Landed on " + player.GetPlanet()->DisplayName() + ".";
+		return text;
+	}
+	const Ship *flagship = player.Flagship();
+	if(!flagship)
+		return text;
+	// Nearest stellar object as a reference point.
+	const StellarObject *nearest = nullptr;
+	double best = 1e18;
+	for(const StellarObject &object : system.Objects())
+		if(object.HasSprite())
+		{
+			double distance = object.Position().Distance(flagship->Position()) - object.Radius();
+			if(distance < best)
+			{
+				best = distance;
+				nearest = &object;
+			}
+		}
+	if(nearest)
+	{
+		double distance = nearest->Position().Distance(flagship->Position());
+		if(distance < nearest->Radius())
+			text += " Over " + StellarName(*nearest) + ".";
+		else
+			text += " Nearest object: " + StellarName(*nearest) + ", " + Where(*flagship, nearest->Position()) + ".";
+	}
+	// Distance from the system centre helps when leaving to jump.
+	text += " " + AccessFormat::Distance(flagship->Position().Length()) + " from the system centre, "
+		+ AccessFormat::CompassDirection(flagship->Position()) + " of it.";
+	return text;
+}
+
+
+
+string AccessFlight::Status()
+{
+	PlayerInfo &player = Player();
+	const Ship *flagship = player.Flagship();
+	if(!player.IsLoaded() || !flagship)
+		return "No flagship.";
+	vector<string> parts;
+	string name = flagship->GivenName() + ", " + flagship->DisplayModelName();
+	parts.push_back(name);
+	if(flagship->Attributes().Get("shields"))
+		parts.push_back("shields " + Fraction(flagship->ShieldFraction()));
+	parts.push_back("hull " + Fraction(flagship->HullFraction()));
+	parts.push_back("energy " + Fraction(flagship->EnergyFraction()));
+	parts.push_back("heat " + Fraction(flagship->HeatFraction()) + (flagship->IsOverheated() ? ", overheated" : ""));
+	double fuel = flagship->FuelFraction() * flagship->Attributes().Get("fuel capacity");
+	double jumpFuel = flagship->JumpNavigation().JumpFuel();
+	string fuelText = "fuel " + AccessFormat::Integer(fuel) + " of "
+		+ AccessFormat::Integer(flagship->Attributes().Get("fuel capacity"));
+	if(jumpFuel > 0.)
+		fuelText += ", " + AccessFormat::Plural(static_cast<int64_t>(fuel / jumpFuel), "jump") + " available";
+	parts.push_back(fuelText);
+	if(flagship->IsDisabled())
+		parts.push_back("disabled");
+	if(!player.GetPlanet())
+		parts.push_back(AccessFormat::Motion(flagship->Facing(), flagship->Velocity(), Speed(*flagship)));
+	parts.push_back("crew " + to_string(flagship->Crew()) + " of " + to_string(flagship->RequiredCrew())
+		+ " required");
+	return AccessFormat::List(parts) + ".";
+}
+
+
+
+string AccessFlight::Motion()
+{
+	const Ship *flagship = Player().Flagship();
+	if(!flagship)
+		return "No flagship.";
+	if(Player().GetPlanet())
+		return "You are landed.";
+	string heading = "Heading " + to_string(static_cast<int>(lround(flagship->Facing().AbsDegrees())))
+		+ " degrees, facing " + AccessFormat::CompassDirection(flagship->Facing().Unit()) + ". ";
+	string motion = AccessFormat::Sentence(AccessFormat::Motion(flagship->Facing(), flagship->Velocity(),
+		Speed(*flagship)));
+	double max = flagship->MaxVelocity() * 60.;
+	string text = heading + motion;
+	if(max > 0. && Speed(*flagship) >= 1.)
+		text += ", " + AccessFormat::Percent(min(1., Speed(*flagship) / max)) + " of top speed";
+	text += ".";
+	if(Speed(*flagship) >= 1.)
+		text += " Travelling " + AccessFormat::CompassDirection(flagship->Velocity()) + ".";
+	if(flagship->IsThrusting())
+		text += " Thrusting.";
+	if(flagship->IsReversing())
+		text += " Reverse thrust.";
+	return text;
+}
+
+
+
+string AccessFlight::Target()
+{
+	PlayerInfo &player = Player();
+	const Ship *flagship = player.Flagship();
+	Engine *engine = AccessContext::GetEngine();
+	if(!flagship || !engine)
+		return "No flagship.";
+	const Information &info = AccessInspector::HudInfo(*engine);
+	shared_ptr<Ship> target = flagship->GetTargetShip();
+	shared_ptr<Minable> asteroid = flagship->GetTargetAsteroid();
+	if(target)
+	{
+		vector<string> parts;
+		parts.push_back(DescribeShip(*target, true));
+		if(target->GetSystem() != player.GetSystem())
+		{
+			parts.push_back("not in this system");
+			return AccessFormat::List(parts) + ".";
+		}
+		if(!target->IsTargetable())
+		{
+			parts.push_back("not currently visible");
+			return AccessFormat::List(parts) + ".";
+		}
+		parts.push_back(Where(*flagship, target->Position(), HasRangeFinder(*target)));
+		parts.push_back("shields " + Fraction(info.BarValue("target shields")));
+		parts.push_back("hull " + Fraction(info.BarValue("target hull")));
+		if(info.HasCondition("target crew display") || info.HasCondition("mobility crew display"))
+			parts.push_back("crew " + info.GetString("target crew"));
+		if(info.HasCondition("target energy display"))
+			parts.push_back("energy " + info.GetString("target energy"));
+		if(info.HasCondition("target fuel display"))
+			parts.push_back("fuel " + info.GetString("target fuel"));
+		if(info.HasCondition("target thermal display"))
+			parts.push_back("heat " + info.GetString("target heat"));
+		if(info.HasCondition("target weapon range display"))
+			parts.push_back("gun range " + info.GetString("target gun") + ", turret range "
+				+ info.GetString("target turret"));
+		Point relative = target->Velocity() - flagship->Velocity();
+		if(relative.Length() * 60. >= 5.)
+		{
+			Point delta = target->Position() - flagship->Position();
+			double closing = -relative.Dot(delta.Unit()) * 60.;
+			parts.push_back(closing > 0. ? "closing at " + AccessFormat::Integer(closing) + " units per second"
+				: "moving away at " + AccessFormat::Integer(-closing) + " units per second");
+		}
+		double range = max(flagship->GetAICache().GunRange(), flagship->GetAICache().TurretRange());
+		if(range > 0.)
+			parts.push_back(target->Position().Distance(flagship->Position()) <= range
+				? "in weapons range" : "out of weapons range");
+		if(target->IsDisabled())
+			parts.push_back("can be boarded");
+		return AccessFormat::List(parts) + ".";
+	}
+	if(asteroid)
+		return "Asteroid target: " + AsteroidName(asteroid) + ", " + Where(*flagship, asteroid->Position())
+			+ ", condition " + Fraction(asteroid->HullFraction()) + ".";
+	return "No target. Use the game's target keys to select one, or the review cursor to choose from nearby objects.";
+}
+
+
+
+string AccessFlight::Destination()
+{
+	PlayerInfo &player = Player();
+	const Ship *flagship = player.Flagship();
+	if(!player.IsLoaded())
+		return "No pilot is loaded.";
+	vector<string> parts;
+	if(flagship && flagship->GetTargetStellar() && !player.GetPlanet())
+	{
+		const StellarObject &object = *flagship->GetTargetStellar();
+		string mode = flagship->Commands().Has(Command::LAND) ? "Landing on " : "Navigation target ";
+		parts.push_back(mode + StellarName(object) + ", " + LandingStatus(object, *flagship) + ", "
+			+ Where(*flagship, object.Position()));
+	}
+	const vector<const System *> &plan = player.TravelPlan();
+	if(!plan.empty())
+	{
+		const System *final = plan.front();
+		string finalName = player.KnowsName(*final) ? final->DisplayName() : "an unexplored system";
+		string route = "Route to " + finalName + ", " + AccessFormat::Plural(static_cast<int64_t>(plan.size()), "jump");
+		const System *next = plan.back();
+		route += ". Next: " + (player.KnowsName(*next) ? next->DisplayName() : string("unexplored system"));
+		if(flagship && player.GetSystem() && !player.GetPlanet())
+		{
+			Point direction = next->Position() - player.GetSystem()->Position();
+			route += ", " + AccessFormat::Bearing(AccessFormat::RelativeDegrees(flagship->Facing(), direction));
+		}
+		if(flagship)
+		{
+			// Fuel needed along the route, using the game's jump costs.
+			double fuel = flagship->FuelFraction() * flagship->Attributes().Get("fuel capacity");
+			double needed = 0.;
+			const System *from = player.GetSystem();
+			for(auto it = plan.rbegin(); it != plan.rend(); ++it)
+			{
+				needed += flagship->JumpNavigation().GetCheapestJumpType(from, *it).second;
+				from = *it;
+			}
+			route += ". Fuel needed " + AccessFormat::Integer(needed) + ", you have " + AccessFormat::Integer(fuel);
+			if(needed > fuel)
+				route += ". Not enough fuel for the whole route";
+		}
+		if(player.TravelDestination())
+			route += ". Destination planet " + player.TravelDestination()->DisplayName();
+		parts.push_back(route);
+	}
+	else if(flagship && flagship->GetTargetSystem())
+	{
+		const System *system = flagship->GetTargetSystem();
+		parts.push_back("Hyperspace target " + (player.KnowsName(*system) ? system->DisplayName() + " system"
+			: string("unexplored system")));
+	}
+	if(parts.empty())
+		return "No destination. Open the map to plan a route, or select a landing target.";
+	return AccessFormat::List(parts) + ".";
+}
+
+
+
+string AccessFlight::Nearby()
+{
+	PlayerInfo &player = Player();
+	const Ship *flagship = player.Flagship();
+	if(!flagship || !player.GetSystem())
+		return "No flagship.";
+	vector<const StellarObject *> objects;
+	for(const StellarObject &object : player.GetSystem()->Objects())
+		if(object.HasSprite() && (object.GetPlanet() || object.IsStar()))
+			objects.push_back(&object);
+	if(objects.empty())
+		return "No planets or stations in this system.";
+	sort(objects.begin(), objects.end(), [flagship](const StellarObject *a, const StellarObject *b)
+	{
+		return a->Position().Distance(flagship->Position()) < b->Position().Distance(flagship->Position());
+	});
+	vector<string> lines;
+	bool landed = player.GetPlanet();
+	for(const StellarObject *object : objects)
+	{
+		string line = StellarName(*object) + ", " + StellarKind(*object);
+		if(object->GetPlanet())
+			line += ", " + LandingStatus(*object, *flagship);
+		if(!landed)
+			line += ", " + Where(*flagship, object->Position());
+		lines.push_back(line);
+	}
+	if(landed)
+		return "Landed on " + player.GetPlanet()->DisplayName() + ". Objects in this system: "
+			+ AccessFormat::List(lines) + ".";
+	return to_string(lines.size()) + " objects. " + AccessFormat::List(lines) + ".";
+}
+
+
+
+string AccessFlight::Hostiles()
+{
+	Engine *engine = AccessContext::GetEngine();
+	const Ship *flagship = Player().Flagship();
+	if(!engine || !flagship)
+		return "No flagship.";
+	vector<shared_ptr<Ship>> hostiles;
+	for(const shared_ptr<Ship> &ship : VisibleShips(*engine))
+	{
+		Kind kind = Classify(*ship);
+		if(kind == Kind::HOSTILE || kind == Kind::HOSTILE_ATTACKING)
+			hostiles.push_back(ship);
+	}
+	if(hostiles.empty())
+		return "No hostile ships in sight.";
+	SortByDistance(hostiles, flagship->Position());
+	vector<string> lines;
+	for(size_t i = 0; i < hostiles.size() && i < 6; ++i)
+		lines.push_back(ShipLine(*hostiles[i], *flagship));
+	string text = AccessFormat::Plural(static_cast<int64_t>(hostiles.size()), "hostile ship") + ". "
+		+ AccessFormat::List(lines) + ".";
+	if(hostiles.size() > 6)
+		text += " Use the review cursor for the full list.";
+	return text;
+}
+
+
+
+string AccessFlight::Fleet()
+{
+	PlayerInfo &player = Player();
+	if(!player.IsLoaded())
+		return "No pilot is loaded.";
+	const Ship *flagship = player.Flagship();
+	vector<string> lines;
+	int parked = 0;
+	for(const shared_ptr<Ship> &ship : player.Ships())
+	{
+		if(ship->IsDestroyed())
+			continue;
+		if(ship->IsParked())
+		{
+			++parked;
+			continue;
+		}
+		string line = ship->GivenName() + ", " + ship->DisplayModelName();
+		if(ship.get() == flagship)
+			line += ", flagship";
+		line += ", shields " + Fraction(ship->ShieldFraction()) + ", hull " + Fraction(ship->HullFraction());
+		if(ship->IsDisabled())
+			line += ", disabled";
+		if(ship->GetSystem() != player.GetSystem())
+			line += ", in " + (ship->GetSystem() ? ship->GetSystem()->DisplayName() : string("another system"));
+		else if(flagship && ship.get() != flagship && !player.GetPlanet() && ship->GetSystem() == flagship->GetSystem())
+			line += ", " + Where(*flagship, ship->Position());
+		lines.push_back(line);
+	}
+	string text = AccessFormat::Plural(static_cast<int64_t>(lines.size()), "active ship") + ". "
+		+ AccessFormat::List(lines) + ".";
+	Engine *engine = AccessContext::GetEngine();
+	if(engine && !player.GetPlanet())
+	{
+		int friendly = 0;
+		for(const shared_ptr<Ship> &ship : VisibleShips(*engine))
+			if(Classify(*ship) == Kind::FRIENDLY)
+				++friendly;
+		if(friendly)
+			text += " " + AccessFormat::Plural(friendly, "other friendly ship") + " in sight.";
+	}
+	if(parked)
+		text += " " + AccessFormat::Plural(parked, "parked ship") + ".";
+	// Escort orders currently configured.
+	vector<string> settings;
+	if(Preferences::Has("Escorts expend ammo"))
+		settings.push_back(Preferences::Has("Escorts use ammo frugally") ? "escorts use ammo frugally"
+			: "escorts use ammo freely");
+	else
+		settings.push_back("escorts do not use ammo");
+	text += " " + AccessFormat::Sentence(AccessFormat::List(settings)) + ".";
+	return text;
+}
+
+
+
+string AccessFlight::Cargo()
+{
+	PlayerInfo &player = Player();
+	if(!player.IsLoaded())
+		return "No pilot is loaded.";
+	const CargoHold &cargo = player.Cargo();
+	vector<string> parts;
+	parts.push_back(AccessFormat::Credits(player.Accounts().Credits()));
+	parts.push_back("cargo " + AccessFormat::Integer(cargo.Used()) + " of " + AccessFormat::Integer(cargo.Size())
+		+ " tons used, " + AccessFormat::Integer(cargo.Free()) + " free");
+	vector<string> items;
+	for(const auto &it : cargo.Commodities())
+		if(it.second)
+			items.push_back(AccessFormat::Plural(it.second, "ton") + " of " + it.first);
+	for(const auto &it : cargo.Outfits())
+		if(it.second)
+			items.push_back(to_string(it.second) + " " + it.first->DisplayName());
+	for(const auto &it : cargo.MissionCargo())
+		if(it.second)
+			items.push_back(AccessFormat::Plural(it.second, "ton") + " of mission cargo");
+	if(!items.empty())
+		parts.push_back("carrying " + AccessFormat::List(items));
+	if(cargo.Passengers())
+		parts.push_back(AccessFormat::Plural(cargo.Passengers(), "passenger") + ", "
+			+ AccessFormat::Integer(cargo.BunksFree()) + " bunks free");
+	else
+		parts.push_back(AccessFormat::Integer(cargo.BunksFree()) + " bunks free");
+	return AccessFormat::List(parts) + ".";
+}
+
+
+
+string AccessFlight::Weapons()
+{
+	PlayerInfo &player = Player();
+	const Ship *flagship = player.Flagship();
+	if(!flagship)
+		return "No flagship.";
+	map<string, int> primary;
+	map<string, int> secondary;
+	map<const Outfit *, int> ammoNeeded;
+	for(const Hardpoint &hardpoint : flagship->Weapons())
+	{
+		const Outfit *outfit = hardpoint.GetOutfit();
+		if(!outfit)
+			continue;
+		const Weapon *weapon = hardpoint.GetWeapon();
+		bool isSecondary = weapon && weapon->Ammo();
+		string name = outfit->DisplayName();
+		if(hardpoint.IsTurret() && name.find("Turret") == string::npos && name.find("turret") == string::npos)
+			name += " turret";
+		(isSecondary ? secondary : primary)[name]++;
+		if(weapon && weapon->Ammo())
+			ammoNeeded[weapon->Ammo()]++;
+	}
+	vector<string> parts;
+	if(primary.empty() && secondary.empty())
+		parts.push_back("No weapons installed");
+	vector<string> list;
+	for(const auto &it : primary)
+		list.push_back(it.second > 1 ? to_string(it.second) + " " + it.first : it.first);
+	if(!list.empty())
+		parts.push_back("Weapons: " + AccessFormat::List(list));
+	list.clear();
+	for(const auto &it : ammoNeeded)
+	{
+		bool selected = player.SelectedSecondaryWeapons().contains(it.first);
+		list.push_back(it.first->DisplayName() + " " + to_string(flagship->OutfitCount(it.first))
+			+ (selected ? ", selected" : ""));
+	}
+	if(!list.empty())
+		parts.push_back("Ammunition: " + AccessFormat::List(list));
+	double gun = flagship->GetAICache().GunRange();
+	double turret = flagship->GetAICache().TurretRange();
+	if(gun > 0.)
+		parts.push_back("gun range " + AccessFormat::Integer(gun));
+	if(turret > 0.)
+		parts.push_back("turret range " + AccessFormat::Integer(turret));
+	parts.push_back("energy " + Fraction(flagship->EnergyFraction()));
+	parts.push_back("heat " + Fraction(flagship->HeatFraction()) + (flagship->IsOverheated() ? ", overheated" : ""));
+	parts.push_back(Preferences::Has("Turrets focus fire") ? "turrets focus fire" : "turrets fire opportunistically");
+	return AccessFormat::List(parts) + ".";
+}
+
+
+
+string AccessFlight::ToggleBeacon()
+{
+	beaconOn = !beaconOn;
+	beaconTimer = 0;
+	if(beaconOn && !AccessContext::AudioCues())
+		return "Beacon on, but audio cues are turned off or unavailable.";
+	return beaconOn ? "Beacon on. It points to your target ship, landing target, asteroid or hyperspace "
+		"destination. Higher pitch means ahead, lower means behind." : "Beacon off.";
+}
+
+
+
+string AccessFlight::MissionSummary(const Mission &mission, bool accepted)
+{
+	PlayerInfo &player = Player();
+	vector<string> parts;
+	if(mission.Destination())
+	{
+		const Planet *planet = mission.Destination();
+		string where = "Destination " + planet->DisplayName();
+		if(planet->GetSystem())
+			where += " in the " + planet->GetSystem()->DisplayName() + " system";
+		parts.push_back(where);
+	}
+	int stopovers = 0;
+	for(const Planet *planet : mission.Stopovers())
+		if(!mission.VisitedStopovers().contains(planet))
+			++stopovers;
+	if(stopovers)
+		parts.push_back(AccessFormat::Plural(stopovers, "stopover") + " remaining");
+	int waypoints = 0;
+	for(const System *system : mission.Waypoints())
+		if(!mission.VisitedWaypoints().contains(system))
+			++waypoints;
+	if(waypoints)
+		parts.push_back(AccessFormat::Plural(waypoints, "waypoint") + " remaining");
+	if(mission.Deadline())
+	{
+		int days = player.RemainingDeadline(mission);
+		parts.push_back("deadline " + mission.Deadline().ToString() + ", "
+			+ AccessFormat::Plural(days, "day") + " left");
+	}
+	if(mission.CargoSize())
+		parts.push_back(AccessFormat::Plural(mission.CargoSize(), "ton") + " of " + mission.Cargo());
+	if(mission.Passengers())
+		parts.push_back(AccessFormat::Plural(mission.Passengers(), "passenger"));
+	if(mission.DisplayedPayment())
+		parts.push_back("payment " + AccessFormat::Credits(mission.DisplayedPayment()));
+	if(accepted && mission.IsFailed())
+		parts.push_back("failed");
+	else if(accepted && mission.IsSatisfied(player))
+		parts.push_back("ready to complete");
+	string text = parts.empty() ? string() : AccessFormat::Sentence(AccessFormat::List(parts)) + ". ";
+	text += mission.Description();
+	return text;
+}
+
+
+
+void AccessFlight::BuildReview(vector<ReviewGroup> &groups)
+{
+	PlayerInfo &player = Player();
+	Engine *engine = AccessContext::GetEngine();
+	Ship *flagship = player.Flagship();
+	if(!engine || !flagship || !player.GetSystem())
+		return;
+	const Point here = flagship->Position();
+
+	// Planets and stations.
+	ReviewGroup planets;
+	planets.name = "Planets and stations";
+	vector<const StellarObject *> objects;
+	for(const StellarObject &object : player.GetSystem()->Objects())
+		if(object.HasSprite() && (object.GetPlanet() || object.IsStar()))
+			objects.push_back(&object);
+	sort(objects.begin(), objects.end(), [&here](const StellarObject *a, const StellarObject *b)
+	{
+		return a->Position().Distance(here) < b->Position().Distance(here);
+	});
+	for(const StellarObject *object : objects)
+	{
+		ReviewItem item([object]()
+		{
+			const Ship *ship = Player().Flagship();
+			if(!ship)
+				return StellarName(*object);
+			string text = StellarName(*object) + ", " + StellarKind(*object);
+			if(object->GetPlanet())
+				text += ", " + LandingStatus(*object, *ship);
+			if(ship->GetTargetStellar() == object)
+				text += ", selected";
+			return text + ", " + Where(*ship, object->Position());
+		}, [object]() { return SelectStellar(object); });
+		item.detail = [object]() -> string
+		{
+			const Planet *planet = object->GetPlanet();
+			if(!planet)
+				return string();
+			string text;
+			if(planet->GetGovernment())
+				text += "Government " + planet->GetGovernment()->DisplayName() + ". ";
+			if(planet->HasNamedPort())
+				text += "Has a spaceport. ";
+			if(planet->HasShipyard())
+				text += "Has a shipyard. ";
+			if(planet->HasOutfitter())
+				text += "Has an outfitter. ";
+			return text + "Select it, then press the land key to land there.";
+		};
+		planets.items.push_back(std::move(item));
+	}
+	groups.push_back(std::move(planets));
+
+	// Ships, by category.
+	vector<shared_ptr<Ship>> ships = VisibleShips(*engine);
+	SortByDistance(ships, here);
+	ReviewGroup hostile{"Hostile ships", {}};
+	ReviewGroup other{"Other ships", {}};
+	ReviewGroup fleet{"Your fleet", {}};
+	ReviewGroup disabled{"Disabled ships", {}};
+	for(const shared_ptr<Ship> &ship : ships)
+	{
+		weak_ptr<Ship> weak = ship;
+		ReviewItem item([weak]()
+		{
+			shared_ptr<Ship> s = weak.lock();
+			const Ship *flag = Player().Flagship();
+			if(!s || !flag)
+				return string("Ship no longer present");
+			string text = AccessFlight::DescribeShip(*s, false);
+			if(flag->GetTargetShip() == s)
+				text += ", targeted";
+			if(s->GetSystem() != Player().GetSystem() || s->IsDestroyed())
+				return text + ", gone";
+			return text + ", " + Where(*flag, s->Position(), HasRangeFinder(*s));
+		}, [weak]() { return SelectShip(weak); });
+		Kind kind = Classify(*ship);
+		if(kind == Kind::YOURS)
+			fleet.items.push_back(std::move(item));
+		else if(kind == Kind::DISABLED)
+			disabled.items.push_back(std::move(item));
+		else if(kind == Kind::HOSTILE || kind == Kind::HOSTILE_ATTACKING)
+			hostile.items.push_back(std::move(item));
+		else
+			other.items.push_back(std::move(item));
+	}
+	groups.push_back(std::move(hostile));
+	groups.push_back(std::move(other));
+	groups.push_back(std::move(disabled));
+	groups.push_back(std::move(fleet));
+
+	// Asteroids that can be mined (closest twenty).
+	ReviewGroup asteroids{"Minable asteroids", {}};
+	vector<shared_ptr<Minable>> minables(AccessInspector::Asteroids(*engine).Minables().begin(),
+		AccessInspector::Asteroids(*engine).Minables().end());
+	SortByDistance(minables, here);
+	for(size_t i = 0; i < minables.size() && i < 20; ++i)
+	{
+		weak_ptr<Minable> weak = minables[i];
+		asteroids.items.emplace_back([weak]()
+		{
+			shared_ptr<Minable> m = weak.lock();
+			const Ship *flag = Player().Flagship();
+			if(!m || !flag)
+				return string("Asteroid gone");
+			string text = AsteroidName(m);
+			if(flag->GetTargetAsteroid() == m)
+				text += ", targeted";
+			return text + ", " + Where(*flag, m->Position());
+		}, [weak]() { return SelectAsteroid(weak); });
+	}
+	groups.push_back(std::move(asteroids));
+
+	// Flotsam that can be collected.
+	ReviewGroup flotsam{"Flotsam", {}};
+	vector<shared_ptr<Flotsam>> pieces(AccessInspector::FlotsamList(*engine).begin(),
+		AccessInspector::FlotsamList(*engine).end());
+	SortByDistance(pieces, here);
+	for(size_t i = 0; i < pieces.size() && i < 20; ++i)
+	{
+		weak_ptr<Flotsam> weak = pieces[i];
+		flotsam.items.emplace_back([weak]()
+		{
+			shared_ptr<Flotsam> f = weak.lock();
+			const Ship *flag = Player().Flagship();
+			if(!f || !flag)
+				return string("Flotsam gone");
+			string what = f->OutfitType() ? f->OutfitType()->DisplayName() : f->CommodityType();
+			return to_string(f->Count()) + " " + what + ", " + Where(*flag, f->Position());
+		});
+	}
+	groups.push_back(std::move(flotsam));
+
+	// Hyperspace links from this system.
+	ReviewGroup links{"Hyperspace links", {}};
+	const set<const System *> &neighbours = flagship->JumpNavigation().HasJumpDrive()
+		? player.GetSystem()->JumpNeighbors(flagship->JumpNavigation().JumpRange()) : player.GetSystem()->Links();
+	for(const System *system : neighbours)
+	{
+		if(!player.HasSeen(*system))
+			continue;
+		links.items.emplace_back([system]()
+		{
+			const Ship *flag = Player().Flagship();
+			string name = Player().KnowsName(*system) ? system->DisplayName() : string("unexplored system");
+			if(flag && flag->GetTargetSystem() == system)
+				name += ", hyperspace target";
+			if(!flag || !Player().GetSystem())
+				return name;
+			Point direction = system->Position() - Player().GetSystem()->Position();
+			return name + ", " + AccessFormat::Bearing(AccessFormat::RelativeDegrees(flag->Facing(), direction))
+				+ ", " + AccessFormat::CompassDirection(direction);
+		});
+	}
+	groups.push_back(std::move(links));
+}

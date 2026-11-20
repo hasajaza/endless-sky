@@ -15,6 +15,8 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 
 #include "Command.h"
 
+#include "accessibility/AccessKeys.h"
+
 #include "DataFile.h"
 #include "DataNode.h"
 #include "DataWriter.h"
@@ -139,7 +141,10 @@ void Command::ReadKeyboard()
 #else
 		if(keyDown[SDL_GetScancodeFromKey(it.second)])
 #endif
-			*this |= it.first;
+			// Accessibility: a key held as part of a Ctrl accessibility chord
+			// must not also act as a flight control.
+			if(!AccessKeys::IsReservedNow(it.second))
+				*this |= it.first;
 
 	// Check whether the `Shift` modifier key was pressed for this step.
 	if(SDL_GetModState() & KMOD_SHIFT)

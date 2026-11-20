@@ -15,6 +15,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 
 #pragma once
 
+#include "accessibility/AccessPanelId.h"
 #include "ShopPanel.h"
 
 #include "Sale.h"
@@ -111,4 +112,6 @@ private:
 	bool checkedHelp = false;
 
 	int shipsHere = 0;
+
+	ES_ACCESSIBLE_PANEL(OutfitterPanel)
 };

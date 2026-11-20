@@ -281,6 +281,8 @@ private:
 	std::map<const Ship *, int> fenceCount;
 	std::map<const Ship *, std::set<const Ship *>> cargoScans;
 	std::map<const Ship *, std::set<const Ship *>> outfitScans;
+
+	friend class AccessInspector;
 	std::map<const Ship *, int> scanTime;
 	std::map<const Ship *, Angle> miningAngle;
 	std::map<const Ship *, double> miningRadius;

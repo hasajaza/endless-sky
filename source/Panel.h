@@ -58,6 +58,10 @@ public:
 	// Make the destructor virtual just in case any derived class needs it.
 	virtual ~Panel() = default;
 
+	// Accessibility: name of the concrete panel type. The game is built
+	// without RTTI, so panels identify themselves for the accessibility layer.
+	virtual const char *AccessibilityId() const noexcept { return ""; }
+
 	// Move the state of this panel forward one game step.
 	virtual void Step();
 
@@ -212,6 +216,7 @@ private:
 	bool focus = false;
 
 	friend class UI;
+	friend class AccessInspector;
 };
 
 

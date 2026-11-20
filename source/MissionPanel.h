@@ -15,6 +15,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 
 #pragma once
 
+#include "accessibility/AccessPanelId.h"
 #include "MapPanel.h"
 
 #include <list>
@@ -109,4 +110,6 @@ private:
 
 	std::shared_ptr<TextArea> description;
 	bool descriptionVisible = false;
+
+	ES_ACCESSIBLE_PANEL(MissionPanel)
 };

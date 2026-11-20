@@ -15,6 +15,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 
 #pragma once
 
+#include "accessibility/AccessPanelId.h"
 #include "Panel.h"
 
 #include <string>
@@ -64,4 +65,6 @@ private:
 	std::vector<std::string> credits;
 	long long int scroll = 0;
 	bool scrollingPaused = false;
+
+	ES_ACCESSIBLE_PANEL(MenuPanel)
 };

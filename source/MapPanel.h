@@ -15,6 +15,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 
 #pragma once
 
+#include "accessibility/AccessPanelId.h"
 #include "Panel.h"
 
 #include "Animate.h"
@@ -237,4 +238,6 @@ private:
 
 	std::vector<Node> nodes;
 	std::vector<Link> links;
+
+	ES_ACCESSIBLE_PANEL(MapPanel)
 };

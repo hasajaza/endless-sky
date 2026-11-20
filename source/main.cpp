@@ -15,6 +15,7 @@ You should have received a copy of the GNU General Public License along with
 this program. If not, see <https://www.gnu.org/licenses/>.
 */
 
+#include "accessibility/Accessibility.h"
 #include "audio/Audio.h"
 #include "Command.h"
 #include "Conversation.h"
@@ -305,6 +306,9 @@ void GameLoop(PlayerInfo &player, TaskQueue &queue, const Conversation &conversa
 	// game loading and game saving.
 	UI menuPanels;
 
+	// Accessibility: speech, screen readers and keyboard review commands.
+	Accessibility::Init(player, menuPanels, gamePanels);
+
 	// Record statistics about the player's play session.
 	Statistics stats(player);
 
@@ -341,6 +345,11 @@ void GameLoop(PlayerInfo &player, TaskQueue &queue, const Conversation &conversa
 		while(SDL_PollEvent(&event))
 		{
 			UI &activeUI = (menuPanels.IsEmpty() ? gamePanels : menuPanels);
+
+			// Accessibility commands are handled first; they never use keys that
+			// the game binds, so nothing the game does is replaced.
+			if(Accessibility::HandleEvent(event))
+				continue;
 
 			// If the mouse moves, reset the cursor movement timeout.
 			if(event.type == SDL_MOUSEMOTION)
@@ -408,6 +417,10 @@ void GameLoop(PlayerInfo &player, TaskQueue &queue, const Conversation &conversa
 			{
 				isFastForward = !isFastForward;
 			}
+
+			// Accessibility: announce the result of the key press.
+			if(event.type == SDL_KEYDOWN)
+				Accessibility::AfterKey(eventKeyCode, eventKeyMod);
 		}
 
 		// Special case: If fastforward is on capslock, update on mod state and not
@@ -470,6 +483,7 @@ void GameLoop(PlayerInfo &player, TaskQueue &queue, const Conversation &conversa
 
 			// Tell all the panels to step forward, then draw them.
 			((!isDebugPaused && menuPanels.IsEmpty()) ? gamePanels : menuPanels).StepAll();
+			Accessibility::Step(isFastForward);
 
 			// Caps lock slows the frame rate in debug mode.
 			// Slowing eases in and out over a couple of frames.
@@ -620,6 +634,7 @@ void GameLoop(PlayerInfo &player, TaskQueue &queue, const Conversation &conversa
 
 			// Tell all the panels to step forward, then draw them.
 			(menuPanels.IsEmpty() ? gamePanels : menuPanels).StepAll();
+			Accessibility::Step(isFastForward);
 
 			if(!isHeadless)
 			{
@@ -643,6 +658,8 @@ void GameLoop(PlayerInfo &player, TaskQueue &queue, const Conversation &conversa
 		player.Save();
 	// Always save statistics on the way out, regardless of the player state.
 	stats.Save();
+
+	Accessibility::Quit();
 }
 
 
