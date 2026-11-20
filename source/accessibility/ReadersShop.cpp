@@ -96,7 +96,8 @@ namespace {
 			}
 			keys.push_back("Shift, Control and Alt multiply the quantity by 5, 20 and 500");
 			keys.push_back("Digits select escort groups; K parks or unparks escorts");
-			keys.push_back("Control plus Space reads the full details of the selected item");
+			keys.push_back("Control plus Left arrow goes to the review list Details of the selection, with the full "
+				"specifications");
 			keys.push_back("L, D or Escape leaves");
 			return keys;
 		}

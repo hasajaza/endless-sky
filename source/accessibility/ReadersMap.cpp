@@ -383,7 +383,7 @@ namespace {
 			return {"Left arrow: available jobs. Right arrow: your accepted missions",
 				"Up and Down arrows choose a mission", "A accepts the selected job",
 				"Shift A aborts the selected accepted mission", "M or Escape close",
-				"Control plus Space reads the full description"};
+				"Control plus Down arrow lists all jobs and missions; Control plus Space reads one in full"};
 		}
 
 		void PostKey(int32_t key, uint16_t mod) override
