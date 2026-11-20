@@ -119,15 +119,6 @@ namespace {
 			return keys;
 		}
 
-		vector<string> MainKeys() override
-		{
-			if(AccessInspector::IsOutfitter(shop))
-				return {"Up and Down arrows choose an outfit", "Space reads its full specifications",
-					"B buys and installs it, S sells it", "Tab switches to your ships", "L leaves"};
-			return {"Up and Down arrows choose a ship", "Space reads its full specifications",
-				"B buys it", "Tab switches to your ships", "L leaves"};
-		}
-
 		vector<int32_t> CtrlKeysUsedByGame() override
 		{
 			// Control multiplies the quantity by 20; Control plus a digit

@@ -82,9 +82,6 @@ public:
 	virtual std::string Summary();
 	// The keys that work on this screen (the game's own keys first).
 	virtual std::vector<std::string> Keys();
-	// The few keys spoken by the context help command. The default is the
-	// first five of Keys(); the full list is in the key reference.
-	virtual std::vector<std::string> MainKeys();
 	// Fill the review cursor. The default lists the screen's text and buttons.
 	virtual void BuildReview(std::vector<ReviewGroup> &groups);
 	// Whether the review list should be kept between key presses (true for

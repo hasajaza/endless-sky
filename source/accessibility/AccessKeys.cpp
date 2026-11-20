@@ -34,9 +34,12 @@ namespace {
 	constexpr uint16_t S = AccessKeys::SHIFT;
 
 	const vector<AccessKeys::Info> INFO = {
-		{AccessAction::CONTEXT_HELP, "context help", "Describe this screen and its keys", {SDLK_F2, 0}},
+		{AccessAction::CONTEXT_HELP, "context help",
+			"Describe this screen; press again to hear its keys one at a time", {SDLK_F2, 0}},
+		{AccessAction::CONTEXT_HELP_PREVIOUS, "context help previous",
+			"Go back to the previous key of this screen", {SDLK_F2, S}},
 		{AccessAction::KEY_REFERENCE, "key reference",
-			"Load the full accessibility key reference into the review cursor", {SDLK_F2, S}},
+			"Load the full accessibility key reference into the review cursor", {SDLK_F2, C}},
 		{AccessAction::REPEAT, "repeat", "Repeat the last announcement", {'r', C}},
 		{AccessAction::HISTORY_BACK, "history back", "Speech history: previous announcement", {SDLK_PAGEUP, C}},
 		{AccessAction::HISTORY_FORWARD, "history forward", "Speech history: next announcement", {SDLK_PAGEDOWN, C}},
@@ -120,6 +123,10 @@ void AccessKeys::Load(const filesystem::path &file)
 	if(!file.empty() && Files::Exists(file))
 	{
 		DataFile data(file);
+		int version = 1;
+		for(const DataNode &node : data)
+			if(node.Token(0) == "keys version" && node.Size() >= 2)
+				version = static_cast<int>(node.Value(1));
 		for(const DataNode &node : data)
 		{
 			// Format: "<action id>" [ctrl] [shift] [alt] <key name or code>
@@ -149,6 +156,17 @@ void AccessKeys::Load(const filesystem::path &file)
 				}
 			}
 		}
+		// Version 1 files (before 1.0.6) saved Shift+F2 for the key reference,
+		// which is now "previous key"; move it to the new default.
+		if(version < 2)
+		{
+			Binding &reference = bindings[AccessAction::KEY_REFERENCE];
+			if(reference.keycode == SDLK_F2 && reference.modifiers == S)
+			{
+				reference = Binding{SDLK_F2, C};
+				bindings[AccessAction::CONTEXT_HELP_PREVIOUS] = Binding{SDLK_F2, S};
+			}
+		}
 	}
 	Rebuild();
 }
@@ -161,6 +179,7 @@ void AccessKeys::Save(const filesystem::path &file)
 	out.WriteComment("Endless Sky accessibility key bindings.");
 	out.WriteComment("Format: \"action\" [ctrl] [shift] [alt] \"key name\". Use \"none\" to disable a key.");
 	out.WriteComment("Key names are SDL key names, for example \"F2\", \"Page Up\", \"Return\", \"r\".");
+	out.Write("keys version", 2);
 	lock_guard<mutex> lock(bindingMutex);
 	auto write = [&out](const string &id, const Binding &binding)
 	{

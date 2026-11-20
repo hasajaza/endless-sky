@@ -31,6 +31,7 @@ enum class AccessAction : int {
 	NONE = 0,
 	// Speech and help.
 	CONTEXT_HELP,
+	CONTEXT_HELP_PREVIOUS,
 	KEY_REFERENCE,
 	REPEAT,
 	HISTORY_BACK,

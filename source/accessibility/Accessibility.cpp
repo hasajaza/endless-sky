@@ -213,25 +213,63 @@ namespace {
 			AccessInspector::GetEngine(*main).Wait();
 	}
 
-	string ContextHelp()
+	// Context help is a short list: the first press describes the screen,
+	// every further press reads the next key, and the previous-key command
+	// goes back. It starts over when the screen changes.
+	const Panel *helpPanel = nullptr;
+	int helpIndex = -1;
+	vector<string> helpKeys;
+
+	string HelpSummary(AccessReader *reader)
 	{
-		Panel *top = AccessContext::TopPanel();
-		AccessReader *reader = ReaderFor(top);
 		vector<string> parts;
 		if(reader)
 		{
 			parts.push_back(reader->Title());
 			parts.push_back(reader->Summary());
-			vector<string> keys = reader->MainKeys();
-			if(!keys.empty())
-				parts.push_back("Main keys: " + AccessFormat::List(keys));
 		}
-		parts.push_back(AccessKeys::KeyName(AccessAction::KEY_REFERENCE) + " lists all keys");
+		parts.push_back(AccessFormat::Plural(static_cast<int64_t>(helpKeys.size()), "key")
+			+ ". Press " + AccessKeys::KeyName(AccessAction::CONTEXT_HELP) + " to hear them one at a time, and "
+			+ AccessKeys::KeyName(AccessAction::CONTEXT_HELP_PREVIOUS) + " to go back");
 		string result;
 		for(const string &part : parts)
 			if(!part.empty())
 				result += AccessFormat::TrimPeriod(part) + ". ";
 		return result;
+	}
+
+	string ContextHelp(int step)
+	{
+		Panel *top = AccessContext::TopPanel();
+		AccessReader *reader = ReaderFor(top);
+		if(top != helpPanel || (step > 0 && helpIndex < -1))
+		{
+			bool restart = (top == helpPanel);
+			helpPanel = top;
+			helpKeys = reader ? reader->Keys() : vector<string>();
+			helpKeys.push_back(AccessKeys::KeyName(AccessAction::KEY_REFERENCE)
+				+ " loads every key, including the accessibility and game keys, into the review list");
+			helpIndex = -1;
+			if(step > 0 || !restart)
+				return HelpSummary(reader);
+		}
+		int count = static_cast<int>(helpKeys.size());
+		if(step < 0 && helpIndex == -2)
+			helpIndex = count;
+		helpIndex += step;
+		if(helpIndex >= count)
+		{
+			helpIndex = -2;
+			return "End of the list. Press " + AccessKeys::KeyName(AccessAction::CONTEXT_HELP)
+				+ " to start again.";
+		}
+		if(helpIndex < 0)
+		{
+			helpIndex = -1;
+			return HelpSummary(reader);
+		}
+		return to_string(helpIndex + 1) + " of " + to_string(count) + ": "
+			+ AccessFormat::TrimPeriod(helpKeys[helpIndex]) + ".";
 	}
 
 	vector<ReviewGroup> KeyReference()
@@ -547,7 +585,10 @@ namespace {
 				ActivateReviewItem();
 				break;
 			case AccessAction::CONTEXT_HELP:
-				AccessSpeech::Say(ContextHelp(), SpeechPriority::REQUESTED);
+				AccessSpeech::Say(ContextHelp(1), SpeechPriority::REQUESTED);
+				break;
+			case AccessAction::CONTEXT_HELP_PREVIOUS:
+				AccessSpeech::Say(ContextHelp(-1), SpeechPriority::REQUESTED);
 				break;
 			case AccessAction::KEY_REFERENCE:
 				AccessContext::LoadReview("Key reference", KeyReference());
@@ -1145,16 +1186,6 @@ string AccessReader::Summary()
 vector<string> AccessReader::Keys()
 {
 	return ButtonKeys();
-}
-
-
-
-vector<string> AccessReader::MainKeys()
-{
-	vector<string> keys = Keys();
-	if(keys.size() > 5)
-		keys.resize(5);
-	return keys;
 }
 
 
