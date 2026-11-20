@@ -104,7 +104,10 @@ namespace {
 				Say(ButtonName(active) + ", button");
 			else if((key == SDLK_RETURN || key == SDLK_KP_ENTER) && AccessInspector::IsOkDisabled(dialog)
 					&& IsOnStack())
-				Say("The value is not valid.");
+			{
+				const string &input = AccessInspector::Input(dialog);
+				Say("The value is not valid. Text field: " + (input.empty() ? string("blank") : input) + ".");
+			}
 			lastActive = active;
 		}
 

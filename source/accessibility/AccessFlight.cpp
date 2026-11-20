@@ -1063,8 +1063,9 @@ string AccessFlight::Fleet()
 			line += ", " + Where(*flagship, ship->Position());
 		lines.push_back(line);
 	}
-	string text = AccessFormat::Plural(static_cast<int64_t>(lines.size()), "active ship") + ". "
-		+ AccessFormat::List(lines) + ".";
+	string text = lines.empty() ? string("No active ships.")
+		: AccessFormat::Plural(static_cast<int64_t>(lines.size()), "active ship") + ". "
+			+ AccessFormat::List(lines) + ".";
 	Engine *engine = AccessContext::GetEngine();
 	if(engine && !player.GetPlanet())
 	{

@@ -222,13 +222,11 @@ namespace {
 		{
 			parts.push_back(reader->Title());
 			parts.push_back(reader->Summary());
-			vector<string> keys = reader->Keys();
+			vector<string> keys = reader->MainKeys();
 			if(!keys.empty())
-				parts.push_back("Keys: " + AccessFormat::List(keys));
+				parts.push_back("Main keys: " + AccessFormat::List(keys));
 		}
-		parts.push_back("Press " + AccessKeys::KeyName(AccessAction::KEY_REFERENCE)
-			+ " for the full key reference, and " + AccessKeys::KeyName(AccessAction::REVIEW_NEXT)
-			+ " to review this screen item by item");
+		parts.push_back(AccessKeys::KeyName(AccessAction::KEY_REFERENCE) + " lists all keys");
 		string result;
 		for(const string &part : parts)
 			if(!part.empty())
@@ -1147,6 +1145,16 @@ string AccessReader::Summary()
 vector<string> AccessReader::Keys()
 {
 	return ButtonKeys();
+}
+
+
+
+vector<string> AccessReader::MainKeys()
+{
+	vector<string> keys = Keys();
+	if(keys.size() > 5)
+		keys.resize(5);
+	return keys;
 }
 
 

@@ -121,6 +121,8 @@ TEST_CASE( "Text field echo", "[accessibility][text]" ) {
 	CHECK( AccessText::EchoEdit("Ada", "") == "cleared" );
 	CHECK( AccessText::EchoEdit("Ada", "Ada") == "" );
 	CHECK( AccessText::EchoEdit("", "pasted text") == "pasted text" );
+	CHECK( AccessText::EchoEdit("", "J") == "cap J" );
+	CHECK( AccessText::EchoEdit("J", "Jo") == "o" );
 	CHECK( AccessText::IsTypingKey('a') );
 	CHECK_FALSE( AccessText::IsTypingKey(0x40000052) );
 }

@@ -26,6 +26,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 #include "../CargoHold.h"
 #include "../CategoryList.h"
 #include "../GameData.h"
+#include "../Hardpoint.h"
 #include "../Outfit.h"
 #include "../Planet.h"
 #include "../PlayerInfo.h"
@@ -68,8 +69,22 @@ namespace {
 
 		void OnReturn() override
 		{
-			Say(Title() + ". " + AccessFormat::Credits(Player().Accounts().Credits()) + ". " + Selection(false),
-				SpeechPriority::FOCUS);
+			// A buy or sell key may have opened a dialog (ship name, confirmation,
+			// "not enough credits"). Report what it changed now that it closed.
+			++returnCount;
+			string result;
+			if(pendingKey)
+			{
+				result = Result(pendingKey);
+				pendingKey = 0;
+				if(result == "Nothing changed.")
+					result.clear();
+			}
+			if(!result.empty())
+				Say(result + " " + Selection(false), SpeechPriority::FOCUS);
+			else
+				Say(Title() + ". " + AccessFormat::Credits(Player().Accounts().Credits()) + ". " + Selection(false),
+					SpeechPriority::FOCUS);
 		}
 
 		string Summary() override
@@ -80,7 +95,9 @@ namespace {
 
 		vector<string> Keys() override
 		{
-			vector<string> keys = {"Arrow keys move through the items", "Tab switches between the store and your ships",
+			vector<string> keys = {"Arrow keys move through the items",
+				"Space reads the full specifications and description of the selected item",
+				"Tab switches between the store and your ships",
 				"Page Up, Page Down, Home and End scroll", "F searches by name"};
 			if(AccessInspector::IsOutfitter(shop))
 			{
@@ -102,6 +119,15 @@ namespace {
 			return keys;
 		}
 
+		vector<string> MainKeys() override
+		{
+			if(AccessInspector::IsOutfitter(shop))
+				return {"Up and Down arrows choose an outfit", "Space reads its full specifications",
+					"B buys and installs it, S sells it", "Tab switches to your ships", "L leaves"};
+			return {"Up and Down arrows choose a ship", "Space reads its full specifications",
+				"B buys it", "Tab switches to your ships", "L leaves"};
+		}
+
 		vector<int32_t> CtrlKeysUsedByGame() override
 		{
 			// Control multiplies the quantity by 20; Control plus a digit
@@ -111,6 +137,11 @@ namespace {
 
 		bool PreKey(int32_t key, uint16_t mod) override
 		{
+			if(key == ' ' && !(mod & (KMOD_CTRL | KMOD_ALT | KMOD_GUI)))
+			{
+				Say(FullDetails(), SpeechPriority::REQUESTED);
+				return true;
+			}
 			creditsBefore = Player().Accounts().Credits();
 			shipsBefore = Player().Ships().size();
 			const Outfit *outfit = AccessInspector::SelectedOutfit(shop);
@@ -141,7 +172,16 @@ namespace {
 			}
 			if(key == 'b' || key == 's' || key == 'i' || key == 'u' || key == 'c' || key == 'r' || key == 'k')
 			{
-				Later(1, [this, key]() { Say(Result(key)); });
+				pendingKey = key;
+				int generation = returnCount;
+				Later(1, [this, generation]()
+				{
+					// If a dialog opened, OnReturn reports the result when it closes.
+					if(generation != returnCount || !pendingKey)
+						return;
+					Say(Result(pendingKey));
+					pendingKey = 0;
+				});
 				return;
 			}
 		}
@@ -312,7 +352,177 @@ namespace {
 			const Ship *ship = AccessInspector::SelectedShip(shop);
 			if(!ship)
 				return "No ship selected. Use the arrow keys to choose one.";
-			return ShipLine(ship) + ".";
+			string text = ship->DisplayModelName();
+			const string &category = ship->BaseAttributes().Category();
+			if(!category.empty())
+				text += ", " + category;
+			text += ", " + AccessFormat::Credits(ship->Cost());
+			string position = Position(ship->TrueModelName());
+			if(!position.empty())
+				text += ", " + position;
+			int64_t license = AccessInspector::LicenseCost(shop, &ship->Attributes());
+			if(license > 0)
+				text += ". Requires a license costing " + AccessFormat::Credits(license);
+			else if(license < 0)
+				text += ". Requires a special license";
+			return text + ". " + ShipStats(*ship) + ".";
+		}
+
+		// The most important numbers of a ship model, the same values the
+		// shipyard shows on screen.
+		string ShipStats(const Ship &ship)
+		{
+			const Outfit &a = ship.Attributes();
+			vector<string> parts;
+			parts.push_back("shields " + AccessFormat::Integer(a.Get("shields")));
+			parts.push_back("hull " + AccessFormat::Integer(a.Get("hull")));
+			double thrust = a.Get("thrust") ? a.Get("thrust") : a.Get("afterburner thrust");
+			double drag = ship.Drag();
+			if(drag > 0.)
+				parts.push_back("max speed " + AccessFormat::Integer(60. * thrust / drag));
+			parts.push_back("cargo " + AccessFormat::Integer(a.Get("cargo space")) + " tons");
+			parts.push_back("crew " + AccessFormat::Integer(ship.RequiredCrew()) + ", bunks "
+				+ AccessFormat::Integer(a.Get("bunks")));
+			parts.push_back("fuel " + AccessFormat::Integer(a.Get("fuel capacity")));
+			parts.push_back("free outfit space " + AccessFormat::Integer(a.Get("outfit space")));
+			int guns = 0;
+			int turrets = 0;
+			for(const Hardpoint &hardpoint : ship.Weapons())
+				(hardpoint.IsTurret() ? turrets : guns)++;
+			parts.push_back(AccessFormat::Plural(guns, "gun port") + ", "
+				+ AccessFormat::Plural(turrets, "turret mount"));
+			return AccessFormat::Sentence(AccessFormat::List(parts));
+		}
+
+		// "2 of 3": where the item is in the store's list.
+		string Position(const string &name)
+		{
+			int index = 0;
+			int count = 0;
+			const auto &catalog = AccessInspector::Catalog(shop);
+			for(const auto &category : AccessInspector::Categories(shop))
+			{
+				auto it = catalog.find(category.Name());
+				if(it == catalog.end())
+					continue;
+				for(const string &item : it->second)
+					if(AccessInspector::HasItem(shop, item))
+					{
+						++count;
+						if(item == name)
+							index = count;
+					}
+			}
+			return index ? to_string(index) + " of " + to_string(count) : string();
+		}
+
+		// Everything the shipyard shows about a ship model, grouped so that it
+		// reads as sentences: specifications, energy and heat, installed
+		// outfits by category, then the description.
+		string ShipFullDetails(const Ship &ship)
+		{
+			auto clean = [](string text)
+			{
+				size_t start = text.find_first_not_of(' ');
+				text = (start == string::npos) ? string() : text.substr(start);
+				while(!text.empty() && (text.back() == ':' || text.back() == ' '))
+					text.pop_back();
+				size_t pos;
+				while((pos = text.find("::")) != string::npos)
+					text.erase(pos, 1);
+				return text;
+			};
+			const ShipInfoDisplay &info = AccessInspector::ShipInfo(shop);
+			vector<string> sentences;
+
+			vector<string> specs;
+			const auto &al = AccessInspector::AttributeLabels(info);
+			const auto &av = AccessInspector::AttributeValues(info);
+			for(size_t i = 0; i < al.size() && i < av.size(); ++i)
+			{
+				string label = clean(al[i]);
+				string value = clean(av[i]);
+				if(label.empty() || value.empty() || label == "cost")
+					continue;
+				specs.push_back(label + " " + value);
+			}
+			if(!specs.empty())
+				sentences.push_back("Specifications: " + AccessFormat::List(specs));
+
+			vector<string> energy;
+			for(const string &line : AccessInspector::EnergyHeatLines(info))
+			{
+				string text = clean(line);
+				// The same list carries the model and category header.
+				if(text.empty() || text.starts_with("model") || text.starts_with("category"))
+					continue;
+				energy.push_back(text);
+			}
+			if(!energy.empty())
+				sentences.push_back("Energy and heat per second: " + AccessFormat::List(energy));
+
+			// Outfit list: a label with no value starts a category.
+			const auto &ol = AccessInspector::OutfitLabels(info);
+			const auto &ov = AccessInspector::OutfitValues(info);
+			string header;
+			vector<string> items;
+			auto flush = [&]()
+			{
+				if(!items.empty())
+					sentences.push_back((header.empty() ? string("Installed") : "Installed " + header) + ": "
+						+ AccessFormat::List(items));
+				items.clear();
+			};
+			for(size_t i = 0; i < ol.size() && i < ov.size(); ++i)
+			{
+				string label = clean(ol[i]);
+				string value = clean(ov[i]);
+				if(label.empty())
+					continue;
+				if(value.empty())
+				{
+					flush();
+					header = label;
+				}
+				else
+					items.push_back(value == "1" ? label : value + " " + label);
+			}
+			flush();
+
+			for(const string &paragraph : AccessText::Paragraphs(ship.Description()))
+				if(!clean(paragraph).empty())
+					sentences.push_back(paragraph);
+
+			string text;
+			for(const string &sentence : sentences)
+				text += AccessFormat::TrimPeriod(sentence) + ". ";
+			return text;
+		}
+
+		// Everything the screen shows about the selection, read by Space.
+		string FullDetails()
+		{
+			if(AccessInspector::IsOutfitter(shop))
+			{
+				const Outfit *outfit = AccessInspector::SelectedOutfit(shop);
+				if(!outfit)
+					return "No outfit selected.";
+			}
+			else if(!AccessInspector::SelectedShip(shop))
+				return "No ship selected.";
+			else
+				return ShipFullDetails(*AccessInspector::SelectedShip(shop));
+			string text;
+			for(const string &line : DetailLines())
+			{
+				string clean = line;
+				size_t start = clean.find_first_not_of(' ');
+				clean = (start == string::npos) ? string() : clean.substr(start);
+				if(clean.empty())
+					continue;
+				text += AccessFormat::TrimPeriod(clean) + ". ";
+			}
+			return text;
 		}
 
 		vector<string> DetailLines()
@@ -399,6 +609,8 @@ namespace {
 		size_t shipsBefore = 0;
 		string countsBefore;
 		bool sidebarBefore = false;
+		int32_t pendingKey = 0;
+		int returnCount = 0;
 	};
 }
 

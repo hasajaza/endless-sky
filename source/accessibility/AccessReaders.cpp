@@ -245,6 +245,9 @@ string AccessText::EchoEdit(const string &before, const string &after)
 			return "dot";
 		if(c == '-')
 			return "dash";
+		// Names must be typed with the right capitals, so say which letters are.
+		if(c >= 'A' && c <= 'Z')
+			return "cap " + string(1, c);
 		return string(1, c);
 	};
 	if(after.size() == before.size() + 1 && after.compare(0, before.size(), before) == 0)
