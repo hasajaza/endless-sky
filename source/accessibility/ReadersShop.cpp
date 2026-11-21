@@ -64,7 +64,9 @@ namespace {
 		void OnOpen() override
 		{
 			Say(Title() + ". " + AccessFormat::Credits(Player().Accounts().Credits()) + ". "
-				+ SelectedShips() + ". " + Selection(false) + " Press F2 for keys.", SpeechPriority::FOCUS);
+				+ SelectedShips() + ". " + Selection(false)
+				+ (AccessInspector::IsOutfitter(shop) ? " Press F2 for keys."
+					: " Space reads a ship's values one at a time. Press F2 for keys."), SpeechPriority::FOCUS);
 		}
 
 		void OnReturn() override
@@ -96,7 +98,11 @@ namespace {
 		vector<string> Keys() override
 		{
 			vector<string> keys = {"Arrow keys move through the items",
-				"Space reads the full specifications and description of the selected item",
+				AccessInspector::IsOutfitter(shop)
+					? "Space reads the full specifications and description of the selected outfit"
+					: "Space reads the ship's values one at a time: shields, hull, speed, cargo and so on, "
+						"compared with your own ship; Shift+Space goes back. Moving to another ship "
+						"reads the same value for it",
 				"Tab switches between the store and your ships",
 				"Page Up, Page Down, Home and End scroll", "F searches by name"};
 			if(AccessInspector::IsOutfitter(shop))
@@ -130,7 +136,12 @@ namespace {
 		{
 			if(key == ' ' && !(mod & (KMOD_CTRL | KMOD_ALT | KMOD_GUI)))
 			{
-				Say(FullDetails(), SpeechPriority::REQUESTED);
+				// Shipyard: Space steps through the ship's values one at a
+				// time, Shift+Space goes back. Outfitter: all details at once.
+				if(AccessInspector::IsOutfitter(shop))
+					Say(FullDetails(), SpeechPriority::REQUESTED);
+				else
+					Say(StepStat((mod & KMOD_SHIFT) ? -1 : 1), SpeechPriority::REQUESTED);
 				return true;
 			}
 			creditsBefore = Player().Accounts().Credits();
@@ -356,33 +367,158 @@ namespace {
 				text += ". Requires a license costing " + AccessFormat::Credits(license);
 			else if(license < 0)
 				text += ". Requires a special license";
-			return text + ". " + ShipStats(*ship) + ".";
+			text += ".";
+			// Keep the value the player was listening to, so moving to the
+			// next ship compares the same value directly.
+			if(statIndex >= 0 && !full)
+				text += " " + StatText(*ship, statIndex);
+			return text;
 		}
 
-		// The most important numbers of a ship model, the same values the
-		// shipyard shows on screen.
-		string ShipStats(const Ship &ship)
+		// One value of a ship, by name, for the step-by-step reading.
+		struct ShipStat {
+			string name;
+			string (*value)(const Ship &);
+		};
+
+		static const vector<ShipStat> &Stats()
 		{
-			const Outfit &a = ship.Attributes();
-			vector<string> parts;
-			parts.push_back("shields " + AccessFormat::Integer(a.Get("shields")));
-			parts.push_back("hull " + AccessFormat::Integer(a.Get("hull")));
-			double thrust = a.Get("thrust") ? a.Get("thrust") : a.Get("afterburner thrust");
-			double drag = ship.Drag();
-			if(drag > 0.)
-				parts.push_back("max speed " + AccessFormat::Integer(60. * thrust / drag));
-			parts.push_back("cargo " + AccessFormat::Integer(a.Get("cargo space")) + " tons");
-			parts.push_back("crew " + AccessFormat::Integer(ship.RequiredCrew()) + ", bunks "
-				+ AccessFormat::Integer(a.Get("bunks")));
-			parts.push_back("fuel " + AccessFormat::Integer(a.Get("fuel capacity")));
-			parts.push_back("free outfit space " + AccessFormat::Integer(a.Get("outfit space")));
-			int guns = 0;
-			int turrets = 0;
-			for(const Hardpoint &hardpoint : ship.Weapons())
-				(hardpoint.IsTurret() ? turrets : guns)++;
-			parts.push_back(AccessFormat::Plural(guns, "gun port") + ", "
-				+ AccessFormat::Plural(turrets, "turret mount"));
-			return AccessFormat::Sentence(AccessFormat::List(parts));
+			static const vector<ShipStat> stats = {
+				{"Shields", [](const Ship &ship)
+				{
+					const Outfit &a = ship.Attributes();
+					double regen = (a.Get("shield generation") + a.Get("delayed shield generation"))
+						* (1. + a.Get("shield generation multiplier"));
+					string text = AccessFormat::Integer(ship.MaxShields());
+					if(regen > 0.)
+						text += ", recharging " + AccessFormat::Integer(60. * regen) + " per second";
+					return text;
+				}},
+				{"Hull", [](const Ship &ship)
+				{
+					const Outfit &a = ship.Attributes();
+					double repair = (a.Get("hull repair rate") + a.Get("delayed hull repair rate"))
+						* (1. + a.Get("hull repair multiplier"));
+					string text = AccessFormat::Integer(ship.MaxHull());
+					if(repair > 0.)
+						text += ", repairing " + AccessFormat::Integer(60. * repair) + " per second";
+					return text;
+				}},
+				{"Max speed", [](const Ship &ship)
+				{
+					const Outfit &a = ship.Attributes();
+					double thrust = a.Get("thrust") ? a.Get("thrust") : a.Get("afterburner thrust");
+					return ship.Drag() > 0. ? AccessFormat::Integer(60. * thrust / ship.Drag()) : string("0");
+				}},
+				{"Acceleration", [](const Ship &ship)
+				{
+					const Outfit &a = ship.Attributes();
+					double thrust = a.Get("thrust") ? a.Get("thrust") : a.Get("afterburner thrust");
+					double mass = a.Mass() / (1. + a.Get("inertia reduction"));
+					return mass > 0. ? AccessFormat::Integer(3600. * thrust * (1. + a.Get("acceleration multiplier"))
+						/ mass) + " with no cargo" : string("0");
+				}},
+				{"Turning", [](const Ship &ship)
+				{
+					const Outfit &a = ship.Attributes();
+					double mass = a.Mass() / (1. + a.Get("inertia reduction"));
+					return mass > 0. ? AccessFormat::Integer(60. * a.Get("turn") * (1. + a.Get("turn multiplier"))
+						/ mass) + " with no cargo" : string("0");
+				}},
+				{"Cargo space", [](const Ship &ship)
+				{
+					return AccessFormat::Integer(ship.Attributes().Get("cargo space")) + " tons";
+				}},
+				{"Bunks", [](const Ship &ship)
+				{
+					return AccessFormat::Integer(ship.Attributes().Get("bunks")) + ", crew needed "
+						+ AccessFormat::Integer(ship.RequiredCrew());
+				}},
+				{"Fuel", [](const Ship &ship)
+				{
+					return AccessFormat::Integer(ship.MaxFuel());
+				}},
+				{"Mass", [](const Ship &ship)
+				{
+					return AccessFormat::Integer(ship.Attributes().Mass()) + " tons with no cargo";
+				}},
+				{"Free outfit space", [](const Ship &ship)
+				{
+					const Outfit &a = ship.Attributes();
+					return AccessFormat::Integer(a.Get("outfit space")) + ", of which weapon capacity "
+						+ AccessFormat::Integer(a.Get("weapon capacity")) + " and engine capacity "
+						+ AccessFormat::Integer(a.Get("engine capacity"));
+				}},
+				{"Weapons", [](const Ship &ship)
+				{
+					int guns = 0, gunsUsed = 0, turrets = 0, turretsUsed = 0;
+					for(const Hardpoint &hardpoint : ship.Weapons())
+					{
+						bool used = hardpoint.GetOutfit();
+						if(hardpoint.IsTurret())
+						{
+							++turrets;
+							turretsUsed += used;
+						}
+						else
+						{
+							++guns;
+							gunsUsed += used;
+						}
+					}
+					return AccessFormat::Plural(guns, "gun port") + " (" + to_string(gunsUsed) + " armed), "
+						+ AccessFormat::Plural(turrets, "turret mount") + " (" + to_string(turretsUsed) + " armed)";
+				}},
+				{"Installed outfits", [](const Ship &ship)
+				{
+					vector<string> items;
+					for(const auto &it : ship.Outfits())
+						if(it.second > 0)
+							items.push_back(it.second == 1 ? it.first->DisplayName()
+								: to_string(it.second) + " " + it.first->DisplayName());
+					return items.empty() ? string("none") : AccessFormat::List(items);
+				}},
+				{"Description", [](const Ship &ship)
+				{
+					string text;
+					for(const string &paragraph : AccessText::Paragraphs(ship.Description()))
+						text += AccessFormat::TrimPeriod(paragraph) + ". ";
+					return text.empty() ? string("none") : text;
+				}},
+			};
+			return stats;
+		}
+
+		// The ship the values are read for: the selected ship of yours when
+		// that list is active, otherwise the selected ship in the store.
+		const Ship *StatShip()
+		{
+			if(AccessInspector::SidebarActive(shop))
+				return AccessInspector::PlayerShip(shop);
+			return AccessInspector::SelectedShip(shop);
+		}
+
+		string StatText(const Ship &ship, int index)
+		{
+			const ShipStat &stat = Stats()[static_cast<size_t>(index)];
+			string text = stat.name + ": " + stat.value(ship);
+			// Compare a ship for sale with the ship you fly now.
+			const Ship *flagship = Player().Flagship();
+			if(flagship && &ship != flagship && !AccessInspector::SidebarActive(shop)
+					&& stat.name != "Description" && stat.name != "Installed outfits")
+				text = AccessFormat::TrimPeriod(text) + ". Your " + flagship->DisplayModelName() + ": "
+					+ stat.value(*flagship);
+			return AccessFormat::TrimPeriod(text) + ".";
+		}
+
+		string StepStat(int step)
+		{
+			const Ship *ship = StatShip();
+			if(!ship)
+				return "No ship selected.";
+			int count = static_cast<int>(Stats().size());
+			statIndex = (statIndex < 0) ? (step > 0 ? 0 : count - 1) : (statIndex + step + count) % count;
+			return to_string(statIndex + 1) + " of " + to_string(count) + ", " + StatText(*ship, statIndex);
 		}
 
 		// "2 of 3": where the item is in the store's list.
@@ -601,6 +737,8 @@ namespace {
 		string countsBefore;
 		bool sidebarBefore = false;
 		int32_t pendingKey = 0;
+		// Which value Space last read (-1: none yet).
+		int statIndex = -1;
 		int returnCount = 0;
 	};
 }
