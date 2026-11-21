@@ -89,6 +89,15 @@ namespace {
 				++missions;
 		if(missions)
 			parts.push_back(AccessFormat::Plural(missions, "mission") + " here");
+		// The price of the trade good chosen with Up and Down, if known.
+		int commodity = AccessInspector::Commodity(map);
+		const auto &commodities = GameData::Commodities();
+		if(canView && commodity >= 0 && commodity < static_cast<int>(commodities.size()))
+		{
+			const string &name = commodities[static_cast<size_t>(commodity)].name;
+			if(system->Trade(name))
+				parts.push_back(name + " " + AccessFormat::Credits(system->Trade(name)));
+		}
 		string text = AccessFormat::List(parts) + ".";
 		if(withPlanets && canView)
 		{
@@ -228,12 +237,13 @@ namespace {
 				"Left and Right arrows choose a destination: mission destinations first, then reachable "
 					"systems, nearest first",
 				"Enter plans a route to the chosen destination; then close the map and press the jump key",
+				"Up and Down choose a trade good, such as Food or Medical; after that, Left and Right also say "
+					"its price in each system, to find where to buy cheap and sell high",
 				"Tab or the jump key add the next hyperspace link to your route; hold Shift to extend the route",
 				"Backspace or Delete removes the last jump of the route",
 				"F finds a system or planet by name",
 				"Control plus arrows browse systems: route, nearby, missions, all known, and planets",
 				"Control plus Enter plans a route to the system under the review cursor",
-				"Up and Down arrows choose the commodity used to colour the map",
 				"C sends your escorts to the selected system",
 				"P ports, T stars, S shipyards, O outfitters and I missions map modes",
 				"Plus and minus zoom, M, D or Escape close the map"};
@@ -464,11 +474,11 @@ namespace {
 			if(commodity >= 0 && commodity < static_cast<int>(commodities.size()))
 			{
 				const string &name = commodities[static_cast<size_t>(commodity)].name;
-				string text = "Map coloured by price of " + name;
-				const System *system = AccessInspector::SelectedSystem(map);
+				string text = "Trade good " + name;
+				const System *system = Player().GetSystem();
 				if(system && Player().CanView(*system) && system->Trade(name))
-					text += ", " + AccessFormat::Credits(system->Trade(name)) + " in " + SystemName(system);
-				return text;
+					text += ": " + AccessFormat::Credits(system->Trade(name)) + " here in " + SystemName(system);
+				return text + ". Left and Right now also say its price in each system.";
 			}
 			return "Map colouring changed";
 		}

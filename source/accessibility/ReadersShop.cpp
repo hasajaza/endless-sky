@@ -33,6 +33,8 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 #include "../SDL.h"
 #include "../Ship.h"
 
+#include <algorithm>
+
 using namespace std;
 
 namespace {
@@ -65,7 +67,7 @@ namespace {
 		{
 			Say(Title() + ". " + AccessFormat::Credits(Player().Accounts().Credits()) + ". "
 				+ SelectedShips() + ". " + Selection(false)
-				+ (AccessInspector::IsOutfitter(shop) ? " Press F2 for keys."
+				+ (AccessInspector::IsOutfitter(shop) ? " Space reads an outfit's values one at a time. Press F2 for keys."
 					: " Space reads a ship's values one at a time. Press F2 for keys."), SpeechPriority::FOCUS);
 		}
 
@@ -99,7 +101,8 @@ namespace {
 		{
 			vector<string> keys = {"Arrow keys move through the items",
 				AccessInspector::IsOutfitter(shop)
-					? "Space reads the full specifications and description of the selected outfit"
+					? "Space reads the outfit's values one at a time, such as mass, outfit space, range or damage; "
+						"Shift+Space goes back. Moving to another outfit reads the same value for it"
 					: "Space reads the ship's values one at a time: shields, hull, speed, cargo and so on, "
 						"compared with your own ship; Shift+Space goes back. Moving to another ship "
 						"reads the same value for it",
@@ -138,10 +141,8 @@ namespace {
 			{
 				// Shipyard: Space steps through the ship's values one at a
 				// time, Shift+Space goes back. Outfitter: all details at once.
-				if(AccessInspector::IsOutfitter(shop))
-					Say(FullDetails(), SpeechPriority::REQUESTED);
-				else
-					Say(StepStat((mod & KMOD_SHIFT) ? -1 : 1), SpeechPriority::REQUESTED);
+				Say(AccessInspector::IsOutfitter(shop) ? StepOutfitValue((mod & KMOD_SHIFT) ? -1 : 1)
+					: StepStat((mod & KMOD_SHIFT) ? -1 : 1), SpeechPriority::REQUESTED);
 				return true;
 			}
 			creditsBefore = Player().Accounts().Credits();
@@ -156,7 +157,7 @@ namespace {
 		{
 			if(key == SDLK_TAB)
 			{
-				Later(1, [this]()
+				Later(2, [this]()
 				{
 					Say(AccessInspector::SidebarActive(shop) ? "Your ships. " + SelectedShips()
 						: "Store. " + Selection(false));
@@ -166,7 +167,9 @@ namespace {
 			if(key == SDLK_UP || key == SDLK_DOWN || key == SDLK_LEFT || key == SDLK_RIGHT
 					|| (key >= '0' && key <= '9'))
 			{
-				Later(1, [this]()
+				// Two frames: the outfit details on screen are refreshed when the
+				// panel draws the new selection.
+				Later(2, [this]()
 				{
 					Say(AccessInspector::SidebarActive(shop) ? SelectedShips() : Selection(false));
 				});
@@ -209,7 +212,7 @@ namespace {
 						{
 							AccessInspector::SelectOutfitItem(shop, outfit);
 							AccessInspector::ShopCheckSelection(shop);
-							Later(1, [this]() { Say(Selection(false), SpeechPriority::REQUESTED); });
+							Later(2, [this]() { Say(Selection(false), SpeechPriority::REQUESTED); });
 							return true;
 						});
 						group.items.back().detail = [this, outfit]() { return OutfitDetails(outfit); };
@@ -221,7 +224,7 @@ namespace {
 						{
 							AccessInspector::SelectShipModel(shop, ship);
 							AccessInspector::ShopCheckSelection(shop);
-							Later(1, [this]() { Say(Selection(false), SpeechPriority::REQUESTED); });
+							Later(2, [this]() { Say(Selection(false), SpeechPriority::REQUESTED); });
 							return true;
 						});
 					}
@@ -264,8 +267,16 @@ namespace {
 		}
 
 	private:
+		static bool IsMap(const Outfit *outfit)
+		{
+			return outfit && outfit->Get("map") > 0.;
+		}
+
 		string Counts(const Outfit *outfit)
 		{
+			// Maps are never installed: buying one adds systems to the star map.
+			if(IsMap(outfit))
+				return "a map, not installed: buying it adds the nearby systems to your star map";
 			vector<string> parts;
 			Ship *ship = AccessInspector::PlayerShip(shop);
 			if(ship)
@@ -349,6 +360,17 @@ namespace {
 					text += " Requires a license costing " + AccessFormat::Credits(license) + ".";
 				if(full)
 					text += " " + OutfitDetails(outfit);
+				else if(!valueLabel.empty())
+				{
+					// Read the value the player was listening to, for comparison.
+					vector<pair<string, string>> values = OutfitValues();
+					auto it = find_if(values.begin(), values.end(),
+						[this](const pair<string, string> &v) { return v.first == valueLabel; });
+					if(it != values.end())
+						text += " " + it->first + ": " + AccessFormat::TrimPeriod(it->second) + ".";
+					else
+						text += " No " + valueLabel + ".";
+				}
 				return text;
 			}
 			const Ship *ship = AccessInspector::SelectedShip(shop);
@@ -509,6 +531,72 @@ namespace {
 				text = AccessFormat::TrimPeriod(text) + ". Your " + flagship->DisplayModelName() + ": "
 					+ stat.value(*flagship);
 			return AccessFormat::TrimPeriod(text) + ".";
+		}
+
+		// The selected outfit's values as label and value, the same rows the
+		// outfitter shows, then the description. The price is left out since
+		// it is part of the selection announcement.
+		vector<pair<string, string>> OutfitValues()
+		{
+			vector<pair<string, string>> values;
+			auto clean = [](string text)
+			{
+				size_t start = text.find_first_not_of(' ');
+				text = (start == string::npos) ? string() : text.substr(start);
+				while(!text.empty() && (text.back() == ':' || text.back() == ' '))
+					text.pop_back();
+				// "shield damage / second" reads better as "per second".
+				for(const char *unit : {" / second", " / shot", " / frame"})
+				{
+					size_t pos;
+					while((pos = text.find(unit)) != string::npos)
+						text.replace(pos, 3, " per ");
+				}
+				return text;
+			};
+			const OutfitInfoDisplay &info = AccessInspector::OutfitInfo(shop);
+			auto add = [&](const vector<string> &labels, const vector<string> &rows)
+			{
+				for(size_t i = 0; i < labels.size() && i < rows.size(); ++i)
+				{
+					string label = clean(labels[i]);
+					string value = clean(rows[i]);
+					if(label.empty() && value.empty())
+						continue;
+					if(label == "cost" || label.starts_with("cost ("))
+						continue;
+					if(value.empty())
+						values.emplace_back(label, string("yes"));
+					else
+						values.emplace_back(label, value);
+				}
+			};
+			add(AccessInspector::RequirementLabels(info), AccessInspector::RequirementValues(info));
+			add(AccessInspector::AttributeLabels(info), AccessInspector::AttributeValues(info));
+			string description;
+			for(const string &paragraph : AccessText::Paragraphs(AccessInspector::DescriptionText(info)))
+				description += AccessFormat::TrimPeriod(paragraph) + ". ";
+			if(!description.empty())
+				values.emplace_back("Description", description);
+			return values;
+		}
+
+		string StepOutfitValue(int step)
+		{
+			if(!AccessInspector::SelectedOutfit(shop))
+				return "No outfit selected.";
+			vector<pair<string, string>> values = OutfitValues();
+			if(values.empty())
+				return "No details.";
+			int count = static_cast<int>(values.size());
+			int index = -1;
+			for(int i = 0; i < count; ++i)
+				if(values[static_cast<size_t>(i)].first == valueLabel)
+					index = i;
+			index = (index < 0) ? (step > 0 ? 0 : count - 1) : (index + step + count) % count;
+			valueLabel = values[static_cast<size_t>(index)].first;
+			return to_string(index + 1) + " of " + to_string(count) + ", " + valueLabel + ": "
+				+ AccessFormat::TrimPeriod(values[static_cast<size_t>(index)].second) + ".";
 		}
 
 		string StepStat(int step)
@@ -714,6 +802,9 @@ namespace {
 			if(AccessInspector::IsOutfitter(shop))
 			{
 				const Outfit *outfit = AccessInspector::SelectedOutfit(shop);
+				if(IsMap(outfit) && change < 0)
+					return text + outfit->DisplayName() + " bought. The systems it covers are now on your star map. "
+						+ AccessFormat::Credits(credits) + " left.";
 				string counts = outfit ? Counts(outfit) : string();
 				if(!change && counts == countsBefore)
 					return "Nothing changed.";
@@ -739,6 +830,8 @@ namespace {
 		int32_t pendingKey = 0;
 		// Which value Space last read (-1: none yet).
 		int statIndex = -1;
+		// Outfitter: the label of the value Space last read (empty: none yet).
+		string valueLabel;
 		int returnCount = 0;
 	};
 }
