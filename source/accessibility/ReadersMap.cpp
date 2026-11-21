@@ -262,13 +262,21 @@ namespace {
 					Say("No known systems to travel to.");
 					return true;
 				}
+				// No wrapping: Left at the first destination and Right at the
+				// last one say so and stay, so Left always goes back to the
+				// destination heard before.
 				int count = static_cast<int>(destinations.size());
+				string edge;
 				if(destinationIndex < 0)
-					destinationIndex = (key == SDLK_RIGHT) ? 0 : count - 1;
+					destinationIndex = 0;
+				else if(key == SDLK_RIGHT && destinationIndex + 1 >= count)
+					edge = "Last destination. ";
+				else if(key == SDLK_LEFT && destinationIndex <= 0)
+					edge = "First destination. ";
 				else
-					destinationIndex = (destinationIndex + (key == SDLK_RIGHT ? 1 : count - 1)) % count;
+					destinationIndex += (key == SDLK_RIGHT) ? 1 : -1;
 				const auto &it = destinations[static_cast<size_t>(destinationIndex)];
-				string text = it.second.empty() ? string() : "Mission " + it.second + ": ";
+				string text = edge + (it.second.empty() ? string() : "Mission " + it.second + ": ");
 				Say(text + SystemInfo(map, it.first, false) + " " + to_string(destinationIndex + 1) + " of "
 					+ to_string(count) + ".");
 				return true;

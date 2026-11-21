@@ -106,6 +106,7 @@ namespace {
 					: "Space reads the ship's values one at a time: shields, hull, speed, cargo and so on, "
 						"compared with your own ship; Shift+Space goes back. Moving to another ship "
 						"reads the same value for it",
+				"A reads all values of the selection at once",
 				"Tab switches between the store and your ships",
 				"Page Up, Page Down, Home and End scroll", "F searches by name"};
 			if(AccessInspector::IsOutfitter(shop))
@@ -143,6 +144,12 @@ namespace {
 				// time, Shift+Space goes back. Outfitter: all details at once.
 				Say(AccessInspector::IsOutfitter(shop) ? StepOutfitValue((mod & KMOD_SHIFT) ? -1 : 1)
 					: StepStat((mod & KMOD_SHIFT) ? -1 : 1), SpeechPriority::REQUESTED);
+				return true;
+			}
+			// A: all values of the selection at once, for those who prefer it.
+			if(key == 'a' && !(mod & (KMOD_CTRL | KMOD_ALT | KMOD_GUI | KMOD_SHIFT)))
+			{
+				Say(AllValues(), SpeechPriority::REQUESTED);
 				return true;
 			}
 			creditsBefore = Player().Accounts().Credits();
@@ -579,6 +586,28 @@ namespace {
 			if(!description.empty())
 				values.emplace_back("Description", description);
 			return values;
+		}
+
+		string AllValues()
+		{
+			string text;
+			if(AccessInspector::IsOutfitter(shop))
+			{
+				const Outfit *outfit = AccessInspector::SelectedOutfit(shop);
+				if(!outfit)
+					return "No outfit selected.";
+				text = outfit->DisplayName() + ". ";
+				for(const auto &value : OutfitValues())
+					text += value.first + ": " + AccessFormat::TrimPeriod(value.second) + ". ";
+				return text;
+			}
+			const Ship *ship = StatShip();
+			if(!ship)
+				return "No ship selected.";
+			text = ship->DisplayModelName() + ". ";
+			for(const ShipStat &stat : Stats())
+				text += stat.name + ": " + AccessFormat::TrimPeriod(stat.value(*ship)) + ". ";
+			return text;
 		}
 
 		string StepOutfitValue(int step)
