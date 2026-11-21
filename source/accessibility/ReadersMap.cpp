@@ -293,8 +293,10 @@ namespace {
 						Say("No route found to " + SystemName(AccessInspector::SelectedSystem(map))
 							+ ". It may not be reachable with your hyperdrive.");
 					else
-						Say(RouteInfo() + " Now close the map with " + CloseKey() + " and press "
-							+ JumpKey() + " to jump.");
+						Say(RouteInfo() + (Player().GetPlanet()
+							? " Now close the map with " + CloseKey() + ", press D to take off, then press "
+								+ JumpKey() + " in space to jump. On a planet, " + JumpKey() + " opens the job board."
+							: " Now close the map with " + CloseKey() + " and press " + JumpKey() + " to jump."));
 				});
 				return true;
 			}

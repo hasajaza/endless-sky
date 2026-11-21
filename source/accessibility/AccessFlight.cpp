@@ -345,7 +345,15 @@ namespace {
 			if(system && !flagship.IsEnteringHyperspace())
 			{
 				string name = Player().KnowsName(*system) ? system->DisplayName() + " system" : "unexplored system";
-				AccessSpeech::Say("Hyperspace target: " + name, SpeechPriority::INFO);
+				// With no planned route, the jump key picks whichever linked
+				// system the ship is facing. Make sure that is not a surprise.
+				if(Player().TravelPlan().empty())
+					AccessSpeech::Say("Warning: no route planned. Your ship is jumping to the " + name
+						+ " ahead of you, which is not on a route. Press an arrow key now to cancel. Fuel for "
+						+ AccessFormat::Plural(flagship.JumpsRemaining(), "jump") + ".",
+						SpeechPriority::IMPORTANT);
+				else
+					AccessSpeech::Say("Hyperspace target: " + name, SpeechPriority::INFO);
 			}
 			lastTargetSystem = system;
 		}
@@ -967,16 +975,29 @@ string AccessFlight::NextStepHint()
 				missionsElsewhere = true;
 		}
 	}
-	if(!here.empty())
-		return "Your mission destination " + AccessFormat::List(here) + " is in this system. Press "
-			+ keyName(Command::LAND, "the land key") + " to land; press it again to choose another planet.";
 	const vector<const System *> &plan = player.TravelPlan();
+	const Ship *flagship = player.Flagship();
+	string fuel;
+	if(flagship)
+	{
+		int jumps = flagship->JumpsRemaining();
+		if(jumps < 2)
+			fuel = " Fuel for " + AccessFormat::Plural(jumps, "jump") + " only: land on an inhabited planet to refuel.";
+	}
+	if(!here.empty())
+		return (plan.empty() ? "End of your route. " : string()) + "Your mission destination "
+			+ AccessFormat::List(here) + " is in this system. Press "
+			+ keyName(Command::LAND, "the land key") + " to land; press it again to choose another planet."
+			+ (plan.empty() ? " Do not press " + keyName(Command::JUMP, "the jump key") + " here." : string())
+			+ fuel;
 	if(!plan.empty())
 	{
 		const System *next = plan.back();
 		return "Next jump: " + (player.KnowsName(*next) ? next->DisplayName() : string("unexplored system"))
-			+ ". Press " + keyName(Command::JUMP, "the jump key") + " to jump.";
+			+ ". Press " + keyName(Command::JUMP, "the jump key") + " to jump." + fuel;
 	}
+	if(!fuel.empty())
+		return fuel.substr(1);
 	if(missionsElsewhere)
 		return "No route planned. Press " + keyName(Command::MAP, "the map key")
 			+ " for the map, then Left and Right arrows to choose your mission destination and Enter to plan the route.";
