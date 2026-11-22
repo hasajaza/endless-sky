@@ -58,6 +58,8 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 #include <map>
 #include <set>
 
+#include <cstring>
+
 using namespace std;
 
 namespace {
@@ -345,14 +347,9 @@ namespace {
 			if(system && !flagship.IsEnteringHyperspace())
 			{
 				string name = Player().KnowsName(*system) ? system->DisplayName() + " system" : "unexplored system";
-				// With no planned route, the jump key picks whichever linked
-				// system the ship is facing. Make sure that is not a surprise.
-				if(Player().TravelPlan().empty())
-					AccessSpeech::Say("Warning: no route planned. Your ship is jumping to the " + name
-						+ " ahead of you, which is not on a route. Press an arrow key now to cancel. Fuel for "
-						+ AccessFormat::Plural(flagship.JumpsRemaining(), "jump") + ".",
-						SpeechPriority::IMPORTANT);
-				else
+				// A jump without a route is warned about when the game says it
+				// engages the autopilot (see AccessFlight::OnGameMessage).
+				if(!Player().TravelPlan().empty())
 					AccessSpeech::Say("Hyperspace target: " + name, SpeechPriority::INFO);
 			}
 			lastTargetSystem = system;
@@ -460,11 +457,14 @@ namespace {
 		{
 			SortByDistance(newAttackers, flagship.Position());
 			string text;
+			string line = ShipLine(*newAttackers.front(), flagship);
+			size_t pos = line.find(", hostile, attacking you");
+			if(pos != string::npos)
+				line.erase(pos, strlen(", hostile, attacking you"));
 			if(newAttackers.size() == 1)
-				text = "Hostile " + ShipLine(*newAttackers.front(), flagship) + ", attacking";
+				text = "Under attack by " + line;
 			else
-				text = to_string(newAttackers.size()) + " hostile ships attacking, nearest "
-					+ ShipLine(*newAttackers.front(), flagship);
+				text = "Under attack by " + to_string(newAttackers.size()) + " hostile ships, nearest " + line;
 			AccessSpeech::Say(text, SpeechPriority::IMPORTANT);
 			attackTimer = 120;
 			for(const auto &ship : newAttackers)
@@ -940,6 +940,29 @@ string AccessFlight::Target()
 
 
 
+bool AccessFlight::OnGameMessage(const string &text)
+{
+	// With no planned route, the jump key picks whichever linked system the
+	// ship is facing. The game only says "Engaging autopilot to jump to the
+	// X system", so make the consequence clear.
+	static const string JUMP = "Engaging autopilot to jump to the ";
+	PlayerInfo &player = Player();
+	if(!text.starts_with(JUMP) || !player.TravelPlan().empty() || !player.Flagship())
+		return false;
+	if(player.Flagship()->JumpsRemaining() <= 0)
+		return false;
+	string name = text.substr(JUMP.size());
+	if(name.ends_with("."))
+		name.pop_back();
+	if(name == "selected star system")
+		name = "unexplored system";
+	AccessSpeech::Say("Warning: no route planned. Your ship is about to jump to the " + name
+		+ " ahead of you, which is not on a route. Press an arrow key now to cancel.", SpeechPriority::IMPORTANT);
+	return true;
+}
+
+
+
 string AccessFlight::NextStepHint()
 {
 	PlayerInfo &player = Player();
@@ -981,8 +1004,10 @@ string AccessFlight::NextStepHint()
 	if(flagship)
 	{
 		int jumps = flagship->JumpsRemaining();
-		if(jumps < 2)
-			fuel = " Fuel for " + AccessFormat::Plural(jumps, "jump") + " only: land on an inhabited planet to refuel.";
+		if(jumps <= 0)
+			fuel = " No fuel left for jumping: land on an inhabited planet to refuel.";
+		else if(jumps < 2)
+			fuel = " Fuel for 1 jump only: land on an inhabited planet to refuel.";
 	}
 	if(!here.empty())
 		return (plan.empty() ? "End of your route. " : string()) + "Your mission destination "

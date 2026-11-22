@@ -39,6 +39,7 @@ enum class AccessAction : int {
 	CYCLE_ENGINE,
 	VERBOSITY,
 	TOGGLE_CUES,
+	TOGGLE_CHATTER,
 	// Information commands.
 	LOCATION,
 	STATUS,

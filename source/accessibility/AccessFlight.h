@@ -43,6 +43,9 @@ public:
 	// What to do next: land on a mission planet here, jump to the next system
 	// of the route, or plan a route on the map. Empty if nothing applies.
 	static std::string NextStepHint();
+	// Called for each game message; returns true if it replaced the message
+	// with its own announcement.
+	static bool OnGameMessage(const std::string &text);
 	static std::string Destination();
 	static std::string Nearby();
 	static std::string Hostiles();

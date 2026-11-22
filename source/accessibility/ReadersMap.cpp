@@ -290,8 +290,7 @@ namespace {
 				Later(1, [this]()
 				{
 					if(Player().TravelPlan().empty())
-						Say("No route found to " + SystemName(AccessInspector::SelectedSystem(map))
-							+ ". It may not be reachable with your hyperdrive.");
+						Say(NoRouteHelp(AccessInspector::SelectedSystem(map)));
 					else
 						Say(RouteInfo() + (Player().GetPlanet()
 							? " Now close the map with " + CloseKey() + ", press D to take off, then press "
@@ -440,6 +439,41 @@ namespace {
 			});
 			for(const System *system : nearby)
 				destinations.emplace_back(system, string());
+		}
+
+		// No known route: the systems in between are not on the star map yet.
+		// Suggest the reachable system closest to the destination, and make it
+		// the current choice so Enter plans a route there.
+		string NoRouteHelp(const System *target)
+		{
+			string name = SystemName(target);
+			string text = "No known route to " + name + ". The systems in between are not on your map yet. "
+				"Buy a map at an outfitter, or travel toward it to discover the way.";
+			if(!target)
+				return text;
+			BuildDestinations();
+			const DistanceMap &distance = AccessInspector::Distances(map);
+			int best = -1;
+			double bestDistance = target->Position().Distance(Player().GetSystem()->Position());
+			for(size_t i = 0; i < destinations.size(); ++i)
+			{
+				const System *system = destinations[i].first;
+				if(system == target || !distance.HasRoute(*system))
+					continue;
+				double d = target->Position().Distance(system->Position());
+				if(d < bestDistance)
+				{
+					bestDistance = d;
+					best = static_cast<int>(i);
+				}
+			}
+			if(best < 0)
+				return text;
+			destinationIndex = best;
+			const System *closest = destinations[static_cast<size_t>(best)].first;
+			return text + " The closest system you can reach in that direction is " + SystemName(closest) + ", "
+				+ AccessFormat::Plural(distance.Days(*closest), "jump")
+				+ " away. Press Enter again to plan a route there.";
 		}
 
 		static string CloseKey()

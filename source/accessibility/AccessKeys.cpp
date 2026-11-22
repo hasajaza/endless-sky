@@ -47,6 +47,8 @@ namespace {
 			{SDLK_F12, C}},
 		{AccessAction::VERBOSITY, "verbosity", "Change automatic announcement verbosity", {SDLK_F11, C}},
 		{AccessAction::TOGGLE_CUES, "audio cues", "Turn accessibility audio cues on or off", {SDLK_F10, C}},
+		{AccessAction::TOGGLE_CHATTER, "ship chatter",
+			"Turn spoken chatter from other ships on or off (it stays in the message log)", {SDLK_F9, C}},
 		{AccessAction::LOCATION, "location", "Current location", {'l', C}},
 		{AccessAction::STATUS, "status", "Flagship status", {'s', C}},
 		{AccessAction::TARGET, "target", "Current target", {'t', C}},

@@ -90,6 +90,8 @@ namespace {
 	// Frames until the settings are saved (after an engine change completes).
 	int pendingSave = 0;
 	bool audioCues = true;
+	// Speak the chatter of other ships ("Merchant ship ...: ...").
+	bool shipChatter = true;
 	int missionIndex = -1;
 	int messageIndex = 0;
 	chrono::steady_clock::time_point lastMessageCommand;
@@ -121,6 +123,8 @@ namespace {
 				AccessSpeech::SetVerbosity(static_cast<int>(node.Value(1)));
 			else if(key == "audio cues")
 				audioCues = node.Value(1) != 0.;
+			else if(key == "ship chatter")
+				shipChatter = node.Value(1) != 0.;
 			else if(key == "cue volume")
 				AccessAudio::SetVolume(node.Value(1));
 			else if(key == "sapi fallback")
@@ -613,6 +617,7 @@ namespace {
 			case AccessAction::CYCLE_ENGINE:
 			case AccessAction::VERBOSITY:
 			case AccessAction::TOGGLE_CUES:
+			case AccessAction::TOGGLE_CHATTER:
 				return false;
 			default:
 				return true;
@@ -674,6 +679,12 @@ namespace {
 			case AccessAction::TOGGLE_CUES:
 				audioCues = !audioCues;
 				AccessSpeech::Say(audioCues ? "Audio cues on." : "Audio cues off.", SpeechPriority::REQUESTED);
+				AccessContext::SaveSettings();
+				return;
+			case AccessAction::TOGGLE_CHATTER:
+				shipChatter = !shipChatter;
+				AccessSpeech::Say(shipChatter ? "Ship chatter on." : "Ship chatter off. It is still in the message log.",
+					SpeechPriority::REQUESTED);
 				AccessContext::SaveSettings();
 				return;
 			case AccessAction::REVIEW_ACTIVATE:
@@ -848,6 +859,7 @@ void AccessContext::SaveSettings()
 	out.Write("verbosity", AccessSpeech::Verbosity());
 	out.Write("audio cues", audioCues ? 1 : 0);
 	out.Write("cue volume", AccessAudio::Volume());
+	out.Write("ship chatter", shipChatter ? 1 : 0);
 	out.Write("sapi fallback", AccessSpeech::UseSapiFallback() ? 1 : 0);
 	out.WriteComment("Speech engine: -1 = automatic; otherwise the Universal Speech engine number.");
 	out.Write("speech engine", AccessSpeech::ForcedEngine());
@@ -1069,6 +1081,13 @@ void Accessibility::FlightStep(Engine &engine, const list<ShipEvent> &events, bo
 
 
 
+namespace {
+	// How often each long game message has been spoken this session.
+	map<string, int> spokenCount;
+}
+
+
+
 void Accessibility::OnMessage(const string &text, const string &category)
 {
 	if(!initialized || text.empty())
@@ -1081,6 +1100,21 @@ void Accessibility::OnMessage(const string &text, const string &category)
 			if(recentMessages.size() > 100)
 				recentMessages.pop_back();
 		}
+	}
+
+	if(AccessFlight::OnGameMessage(text))
+		return;
+	// Ship and planet chatter: "<government> ship "<name>": <text>".
+	if(!shipChatter && category == "normal" && text.find(" ship \"") != string::npos
+			&& text.find("\": ") != string::npos)
+		return;
+	// Long normal messages (first-time help repeated on every arrival) are
+	// spoken twice per session; they stay in the message log (Control+E).
+	if(category == "normal" && text.size() >= 60)
+	{
+		lock_guard<mutex> lock(messageMutex);
+		if(++spokenCount[text] > 2)
+			return;
 	}
 
 	int verbosity = AccessSpeech::Verbosity();

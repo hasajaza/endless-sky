@@ -375,7 +375,13 @@ namespace {
 	public:
 		HailReader(Panel &panel) : AccessReader(panel), hail(static_cast<HailPanel &>(panel)) {}
 
-		string Title() override { return "Hailing " + AccessInspector::HailHeader(hail); }
+		string Title() override
+		{
+			string header = AccessInspector::HailHeader(hail);
+			while(!header.empty() && (header.back() == ':' || header.back() == ' '))
+				header.pop_back();
+			return "Hailing " + header;
+		}
 
 		void OnOpen() override
 		{

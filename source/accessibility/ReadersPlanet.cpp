@@ -203,7 +203,9 @@ namespace {
 		{
 			const CargoHold &cargo = Player().Cargo();
 			string text = AccessFormat::Credits(Player().Accounts().Credits()) + ", "
-				+ AccessFormat::Integer(cargo.Free()) + " tons of cargo space free. ";
+				+ (cargo.Free() >= 0 ? AccessFormat::Integer(cargo.Free()) + " tons of cargo space free. "
+					: "cargo hold overfilled by " + AccessFormat::Plural(-cargo.Free(), "ton")
+						+ ": sell something before you leave. ");
 			if(cargo.CommoditiesSize())
 				text += "Carrying " + AccessFormat::Plural(cargo.CommoditiesSize(), "ton") + " of commodities. ";
 			return text + Row(Player().MapColoring());
@@ -236,6 +238,7 @@ namespace {
 			creditsBefore = Player().Accounts().Credits();
 			cargoBefore = Player().Cargo().Used();
 			int row = Player().MapColoring();
+			rowBefore = row;
 			heldBefore = row >= 0 && row < static_cast<int>(GameData::Commodities().size())
 				? Player().Cargo().Get(GameData::Commodities()[static_cast<size_t>(row)].name) : 0;
 			return false;
@@ -246,6 +249,16 @@ namespace {
 			int row = Player().MapColoring();
 			if(key == SDLK_UP || key == SDLK_DOWN)
 			{
+				// At the top or bottom the selection does not move: say so
+				// once instead of repeating the same commodity.
+				if(row == rowBefore)
+				{
+					if(!edgeSaid)
+						Say(key == SDLK_UP ? "Top of the list." : "End of the list.");
+					edgeSaid = true;
+					return;
+				}
+				edgeSaid = false;
 				Say(Row(row));
 				return;
 			}
@@ -340,7 +353,8 @@ namespace {
 			}
 			if(price)
 			{
-				int64_t affordable = min<int64_t>(Player().Cargo().Free(), Player().Accounts().Credits() / price);
+				int64_t affordable = max<int64_t>(0,
+					min<int64_t>(Player().Cargo().Free(), Player().Accounts().Credits() / price));
 				text += ", you can buy " + AccessFormat::Integer(static_cast<double>(affordable));
 			}
 			return text + ".";
@@ -370,6 +384,8 @@ namespace {
 
 	private:
 		TradingPanel &trading;
+		int rowBefore = -1;
+		bool edgeSaid = false;
 		int64_t creditsBefore = 0;
 		int cargoBefore = 0;
 		int heldBefore = 0;
