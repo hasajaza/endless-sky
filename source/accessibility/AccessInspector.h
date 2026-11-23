@@ -74,6 +74,7 @@ public:
 	static const std::list<std::shared_ptr<Flotsam>> &FlotsamList(const Engine &engine) { return engine.flotsam; }
 	static const std::vector<Projectile> &Projectiles(const Engine &engine) { return engine.projectiles; }
 	static const Information &HudInfo(const Engine &engine) { return engine.info; }
+	static bool &TimePaused(Engine &engine) { return engine.timePaused; }
 	static const Command &AutoPilot(const Engine &engine) { return engine.ai.autoPilot; }
 	static Command &ActiveCommands(Engine &engine) { return engine.activeCommands; }
 	static AI &GetAI(Engine &engine) { return engine.ai; }

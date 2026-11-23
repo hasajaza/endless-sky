@@ -125,6 +125,8 @@ namespace {
 				audioCues = node.Value(1) != 0.;
 			else if(key == "ship chatter")
 				shipChatter = node.Value(1) != 0.;
+			else if(key == "arrival pause")
+				AccessFlight::SetArrivalPause(node.Value(1) != 0.);
 			else if(key == "cue volume")
 				AccessAudio::SetVolume(node.Value(1));
 			else if(key == "sapi fallback")
@@ -618,6 +620,7 @@ namespace {
 			case AccessAction::VERBOSITY:
 			case AccessAction::TOGGLE_CUES:
 			case AccessAction::TOGGLE_CHATTER:
+			case AccessAction::TOGGLE_ARRIVAL_PAUSE:
 				return false;
 			default:
 				return true;
@@ -685,6 +688,13 @@ namespace {
 				shipChatter = !shipChatter;
 				AccessSpeech::Say(shipChatter ? "Ship chatter on." : "Ship chatter off. It is still in the message log.",
 					SpeechPriority::REQUESTED);
+				AccessContext::SaveSettings();
+				return;
+			case AccessAction::TOGGLE_ARRIVAL_PAUSE:
+				AccessFlight::SetArrivalPause(!AccessFlight::ArrivalPause());
+				AccessSpeech::Say(AccessFlight::ArrivalPause()
+					? "Pause on arrival on: the game pauses in each new system. Press P to continue."
+					: "Pause on arrival off.", SpeechPriority::REQUESTED);
 				AccessContext::SaveSettings();
 				return;
 			case AccessAction::REVIEW_ACTIVATE:
@@ -860,6 +870,7 @@ void AccessContext::SaveSettings()
 	out.Write("audio cues", audioCues ? 1 : 0);
 	out.Write("cue volume", AccessAudio::Volume());
 	out.Write("ship chatter", shipChatter ? 1 : 0);
+	out.Write("arrival pause", AccessFlight::ArrivalPause() ? 1 : 0);
 	out.Write("sapi fallback", AccessSpeech::UseSapiFallback() ? 1 : 0);
 	out.WriteComment("Speech engine: -1 = automatic; otherwise the Universal Speech engine number.");
 	out.Write("speech engine", AccessSpeech::ForcedEngine());
@@ -868,6 +879,13 @@ void AccessContext::SaveSettings()
 
 
 // Accessibility (game hooks).
+void Accessibility::SetTestMode()
+{
+	AccessFlight::SetArrivalPause(false);
+}
+
+
+
 void Accessibility::Init(PlayerInfo &playerInfo, UI &menuPanels, UI &gamePanels)
 {
 	player = &playerInfo;

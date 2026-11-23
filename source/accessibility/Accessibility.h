@@ -34,6 +34,8 @@ class Accessibility {
 public:
 	static void Init(PlayerInfo &player, UI &menuPanels, UI &gamePanels);
 	static void Quit();
+	// Automated game tests: no pause on arrival, which would stop them.
+	static void SetTestMode();
 
 	// Called for every SDL event before the game sees it. Returns true if the
 	// event was an accessibility command (and so must not reach the game).

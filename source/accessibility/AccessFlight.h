@@ -43,6 +43,9 @@ public:
 	// What to do next: land on a mission planet here, jump to the next system
 	// of the route, or plan a route on the map. Empty if nothing applies.
 	static std::string NextStepHint();
+	// Pause the game whenever the player arrives in a new system.
+	static void SetArrivalPause(bool on);
+	static bool ArrivalPause();
 	// Called for each game message; returns true if it replaced the message
 	// with its own announcement.
 	static bool OnGameMessage(const std::string &text);

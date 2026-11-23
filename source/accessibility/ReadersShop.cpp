@@ -367,14 +367,14 @@ namespace {
 					text += " Requires a license costing " + AccessFormat::Credits(license) + ".";
 				if(full)
 					text += " " + OutfitDetails(outfit);
-				else if(!valueLabel.empty())
+				else if(!valueLabel.empty() && valueLabel != "Description")
 				{
 					// Read the value the player was listening to, for comparison.
 					vector<pair<string, string>> values = OutfitValues();
 					auto it = find_if(values.begin(), values.end(),
 						[this](const pair<string, string> &v) { return v.first == valueLabel; });
 					if(it != values.end())
-						text += " " + it->first + ": " + AccessFormat::TrimPeriod(it->second) + ".";
+						text += " " + ValueText(*it);
 					else
 						text += " No " + valueLabel + ".";
 				}
@@ -399,7 +399,7 @@ namespace {
 			text += ".";
 			// Keep the value the player was listening to, so moving to the
 			// next ship compares the same value directly.
-			if(statIndex >= 0 && !full)
+			if(statIndex >= 0 && !full && Stats()[static_cast<size_t>(statIndex)].name != "Description")
 				text += " " + StatText(*ship, statIndex);
 			return text;
 		}
@@ -573,7 +573,7 @@ namespace {
 					if(label == "cost" || label.starts_with("cost ("))
 						continue;
 					if(value.empty())
-						values.emplace_back(label, string("yes"));
+						values.emplace_back(label, string());
 					else
 						values.emplace_back(label, value);
 				}
@@ -598,7 +598,7 @@ namespace {
 					return "No outfit selected.";
 				text = outfit->DisplayName() + ". ";
 				for(const auto &value : OutfitValues())
-					text += value.first + ": " + AccessFormat::TrimPeriod(value.second) + ". ";
+					text += ValueText(value) + " ";
 				return text;
 			}
 			const Ship *ship = StatShip();
@@ -608,6 +608,14 @@ namespace {
 			for(const ShipStat &stat : Stats())
 				text += stat.name + ": " + AccessFormat::TrimPeriod(stat.value(*ship)) + ". ";
 			return text;
+		}
+
+		// "range: 510." or, for a row with no value, just its text.
+		static string ValueText(const pair<string, string> &value)
+		{
+			if(value.second.empty())
+				return AccessFormat::TrimPeriod(value.first) + ".";
+			return value.first + ": " + AccessFormat::TrimPeriod(value.second) + ".";
 		}
 
 		string StepOutfitValue(int step)
@@ -624,8 +632,7 @@ namespace {
 					index = i;
 			index = (index < 0) ? (step > 0 ? 0 : count - 1) : (index + step + count) % count;
 			valueLabel = values[static_cast<size_t>(index)].first;
-			return to_string(index + 1) + " of " + to_string(count) + ", " + valueLabel + ": "
-				+ AccessFormat::TrimPeriod(values[static_cast<size_t>(index)].second) + ".";
+			return to_string(index + 1) + " of " + to_string(count) + ", " + ValueText(values[static_cast<size_t>(index)]);
 		}
 
 		string StepStat(int step)

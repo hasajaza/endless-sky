@@ -49,6 +49,8 @@ namespace {
 		{AccessAction::TOGGLE_CUES, "audio cues", "Turn accessibility audio cues on or off", {SDLK_F10, C}},
 		{AccessAction::TOGGLE_CHATTER, "ship chatter",
 			"Turn spoken chatter from other ships on or off (it stays in the message log)", {SDLK_F9, C}},
+		{AccessAction::TOGGLE_ARRIVAL_PAUSE, "arrival pause",
+			"Turn on or off pausing the game each time you arrive in a new system", {'p', C}},
 		{AccessAction::LOCATION, "location", "Current location", {'l', C}},
 		{AccessAction::STATUS, "status", "Flagship status", {'s', C}},
 		{AccessAction::TARGET, "target", "Current target", {'t', C}},

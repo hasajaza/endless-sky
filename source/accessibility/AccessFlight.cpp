@@ -22,6 +22,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 #include "AccessSpeech.h"
 
 #include "../Account.h"
+#include "../audio/Audio.h"
 #include "../AsteroidField.h"
 #include "../CargoHold.h"
 #include "../Command.h"
@@ -69,6 +70,10 @@ namespace {
 	// frames left before it is spoken (0 = none pending).
 	int hintFrames = 0;
 	bool wasOnPlanet = false;
+	// Pause the game on arrival in a system (setting), and whether the
+	// current pause was made by that.
+	bool arrivalPause = true;
+	bool pausedOnArrival = false;
 	const Ship *lastFlagship = nullptr;
 	weak_ptr<Ship> lastTargetShip;
 	bool hadTargetShip = false;
@@ -704,7 +709,17 @@ void AccessFlight::Step(Engine &engine, const list<ShipEvent> &events, bool isAc
 	wasOnPlanet = player.GetPlanet();
 	// Wait a moment so the hint comes after the game's own arrival messages.
 	if(arrived)
+	{
 		hintFrames = 150;
+		// Give the player time to listen and decide what to do here.
+		bool &paused = AccessInspector::TimePaused(engine);
+		if(arrivalPause && !paused)
+		{
+			paused = true;
+			Audio::Pause();
+			pausedOnArrival = true;
+		}
+	}
 	else if(tookOff)
 		hintFrames = 90;
 	if(flagship != lastFlagship || player.GetSystem() != lastSystem)
@@ -737,6 +752,11 @@ void AccessFlight::Step(Engine &engine, const list<ShipEvent> &events, bool isAc
 	if(hintFrames > 0 && --hintFrames == 0 && !flagship->IsEnteringHyperspace())
 	{
 		string hint = NextStepHint();
+		if(pausedOnArrival && AccessInspector::TimePaused(engine))
+			hint += (hint.empty() ? "" : " ") + string("Game paused. Press ")
+				+ (Command::PAUSE.HasBinding() ? AccessFormat::FriendlyKey(Command::PAUSE.KeyName()) : string("the pause key"))
+				+ " to continue.";
+		pausedOnArrival = false;
 		if(!hint.empty())
 			AccessSpeech::Say(hint, SpeechPriority::INFO);
 	}
@@ -940,6 +960,20 @@ string AccessFlight::Target()
 
 
 
+void AccessFlight::SetArrivalPause(bool on)
+{
+	arrivalPause = on;
+}
+
+
+
+bool AccessFlight::ArrivalPause()
+{
+	return arrivalPause;
+}
+
+
+
 bool AccessFlight::OnGameMessage(const string &text)
 {
 	// With no planned route, the jump key picks whichever linked system the
@@ -1018,8 +1052,11 @@ string AccessFlight::NextStepHint()
 	if(!plan.empty())
 	{
 		const System *next = plan.back();
-		return "Next jump: " + (player.KnowsName(*next) ? next->DisplayName() : string("unexplored system"))
-			+ ". Press " + keyName(Command::JUMP, "the jump key") + " to jump." + fuel;
+		string name = player.KnowsName(*next) ? next->DisplayName() : string("unexplored system");
+		if(flagship && flagship->JumpsRemaining() <= 0)
+			return "Next jump: " + name + ", but you have no fuel left. Land on an inhabited planet here to refuel"
+				" first: press " + keyName(Command::LAND, "the land key") + ".";
+		return "Next jump: " + name + ". Press " + keyName(Command::JUMP, "the jump key") + " to jump." + fuel;
 	}
 	if(!fuel.empty())
 		return fuel.substr(1);

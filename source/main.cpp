@@ -308,6 +308,8 @@ void GameLoop(PlayerInfo &player, TaskQueue &queue, const Conversation &conversa
 
 	// Accessibility: speech, screen readers and keyboard review commands.
 	Accessibility::Init(player, menuPanels, gamePanels);
+	if(!testToRunName.empty())
+		Accessibility::SetTestMode();
 
 	// Record statistics about the player's play session.
 	Statistics stats(player);

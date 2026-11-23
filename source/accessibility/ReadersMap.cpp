@@ -47,7 +47,22 @@ namespace {
 	{
 		if(!system)
 			return "no system";
-		return AccessContext::Player().KnowsName(*system) ? system->DisplayName() : "unexplored system";
+		PlayerInfo &player = AccessContext::Player();
+		if(player.KnowsName(*system))
+			return system->DisplayName();
+		// The game names mission destinations; stopovers and waypoints are
+		// named in the mission text, so name them too.
+		for(const Mission &mission : player.Missions())
+		{
+			if(!mission.IsVisible())
+				continue;
+			for(const Planet *planet : mission.Stopovers())
+				if(planet->IsInSystem(system))
+					return system->DisplayName();
+			if(mission.Waypoints().contains(system))
+				return system->DisplayName();
+		}
+		return "unexplored system";
 	}
 
 	// Everything a sighted player can read about a system on the map.
@@ -152,7 +167,7 @@ namespace {
 			}
 			text += ", needs " + AccessFormat::Integer(needed) + " fuel, you have " + AccessFormat::Integer(fuel);
 			if(needed > fuel)
-				text += ", not enough fuel";
+				text += ", not enough fuel for the whole route: land on an inhabited planet on the way to refuel";
 		}
 		return text + ".";
 	}
