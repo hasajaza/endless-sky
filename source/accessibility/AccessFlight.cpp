@@ -1046,7 +1046,7 @@ string AccessFlight::NextStepHint()
 	if(!here.empty())
 		return (plan.empty() ? "End of your route. " : string()) + "Your mission destination "
 			+ AccessFormat::List(here) + " is in this system. Press "
-			+ keyName(Command::LAND, "the land key") + " to land; press it again to choose another planet."
+			+ keyName(Command::LAND, "the land key") + " once: the autopilot flies there and lands."
 			+ (plan.empty() ? " Do not press " + keyName(Command::JUMP, "the jump key") + " here." : string())
 			+ fuel;
 	if(!plan.empty())
