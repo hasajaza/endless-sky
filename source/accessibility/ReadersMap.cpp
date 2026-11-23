@@ -113,6 +113,8 @@ namespace {
 			if(system->Trade(name))
 				parts.push_back(name + " " + AccessFormat::Credits(system->Trade(name)));
 		}
+		else if(!canView && commodity >= 0 && commodity < static_cast<int>(commodities.size()))
+			parts.push_back(commodities[static_cast<size_t>(commodity)].name + " price unknown");
 		string text = AccessFormat::List(parts) + ".";
 		if(withPlanets && canView)
 		{
@@ -537,6 +539,18 @@ namespace {
 				const System *system = Player().GetSystem();
 				if(system && Player().CanView(*system) && system->Trade(name))
 					text += ": " + AccessFormat::Credits(system->Trade(name)) + " here in " + SystemName(system);
+				// Also give the price at the destination chosen with Left and
+				// Right, so goods can be compared without moving away from it.
+				if(destinationIndex >= 0 && destinationIndex < static_cast<int>(destinations.size()))
+				{
+					const System *chosen = destinations[static_cast<size_t>(destinationIndex)].first;
+					if(Player().CanView(*chosen) && chosen->Trade(name))
+						text += ". " + AccessFormat::Credits(chosen->Trade(name)) + " in " + SystemName(chosen);
+					else
+						text += ". Price in " + SystemName(chosen) + " unknown: you have not been there or bought a map"
+							" covering it";
+					return text + ".";
+				}
 				return text + ". Left and Right now also say its price in each system.";
 			}
 			return "Map colouring changed";
