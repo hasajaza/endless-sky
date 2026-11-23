@@ -1,4 +1,4 @@
-> **Endless Sky Accessible** — this fork contains an unofficial screen reader accessibility mod for blind players, on the `accessibility` branch. It is not made or endorsed by the Endless Sky developers. See [accessibility/README.md](accessibility/README.md) for what it does, downloads and documentation.
+> **Endless Sky Accessible** — this fork contains an unofficial screen reader accessibility mod for blind players, on the `accessibility` branch. It is not made or endorsed by the Endless Sky developers. See [accessibility/README.md](accessibility/README.md) for what it does and the documentation, and [download version 1.0.16 here](https://github.com/hasajaza/endless-sky/raw/downloads/EndlessSky_Access_1.0.16.zip).
 
 # Endless Sky
 

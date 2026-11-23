@@ -21,7 +21,7 @@ The mod was developed by Hassan with the help of an AI assistant (Claude, by Ant
 
 You need Endless Sky 0.11.4 installed from Steam. The mod uses the game data from your Steam installation.
 
-1. Download the latest `EndlessSky_Access_x.y.z.zip` from the [Releases](https://github.com/hasajaza/endless-sky/releases) page.
+1. Download the latest version: [EndlessSky_Access_1.0.16.zip](https://github.com/hasajaza/endless-sky/raw/downloads/EndlessSky_Access_1.0.16.zip). All downloads are listed on the [downloads page](https://github.com/hasajaza/endless-sky/tree/downloads).
 2. Extract the zip and run `Install.bat`. It finds your Steam copy of Endless Sky, installs the mod to `%LOCALAPPDATA%\Endless Sky Accessible`, and creates desktop and Start menu shortcuts.
 3. Start "Endless Sky Accessible" from the desktop shortcut.
 
