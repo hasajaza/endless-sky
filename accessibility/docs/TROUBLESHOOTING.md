@@ -23,8 +23,6 @@ with Radeon graphics), with this mod and with the Steam version alike. Fixes, in
    at reduced size and fixed a loading hang on an AMD Athlon Silver 3050U.
 2. Update the graphics driver from the manufacturer (AMD's "Auto-Detect and Install"
    tool, or the laptop maker's support site).
-3. As a last resort, install the software rendering add-on, which draws with the
-   processor instead of the graphics driver (slower).
 
 If the game cannot be started at all to change the preference, close it and edit
 preferences.txt in %APPDATA%\endless-sky with Notepad: change or add the line
