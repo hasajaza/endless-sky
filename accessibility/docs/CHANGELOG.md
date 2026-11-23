@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.17 (2026-11-23)
+
+- Works with the free official download of Endless Sky from GitHub
+  (EndlessSky-win64-v0.11.4.zip), not only with Steam. The installer finds an extracted
+  copy by itself: in the folder around the installer (easiest: extract the mod into the
+  game folder), then Steam, then in Downloads, Desktop, Documents and C:\Games. A folder
+  can also be given directly: Install.bat "C:\path\to\EndlessSky-win64-v0.11.4".
+- README: updated requirements and installation; removed the outdated testing request.
+
 ## 1.0.16 (2026-11-23)
 
 - The arrival hint for a mission planet now says "Press L once: the autopilot flies there

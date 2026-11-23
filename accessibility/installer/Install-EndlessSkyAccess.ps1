@@ -1,6 +1,7 @@
-# Endless Sky Accessible 1.0.0 - installer
+# Endless Sky Accessible - installer
 # Installs the accessible game build into its own folder and points it at the
-# data of your existing Endless Sky installation (Steam or stand-alone).
+# data of your existing Endless Sky 0.11.4 installation: the Steam version or
+# the official download from GitHub (EndlessSky-win64-v0.11.4.zip, extracted).
 # Nothing in the original installation is changed. Saved games are shared.
 param(
 	[string]$GamePath = "",
@@ -26,6 +27,33 @@ if(-not (Test-Path (Join-Path $source "Endless Sky.exe"))) {
 function Test-GameFolder([string]$path) {
 	if(-not $path) { return $false }
 	return (Test-Path (Join-Path $path "credits.txt")) -and (Test-Path (Join-Path $path "data"))
+}
+
+# Folders of the official GitHub download: look next to and above the folder
+# this installer was extracted to, then in Downloads, Desktop and Documents.
+function Find-DownloadedGame {
+	$places = New-Object System.Collections.Generic.List[string]
+	$parent = Split-Path -Parent $here
+	if($parent) {
+		$places.Add($parent)
+		$grand = Split-Path -Parent $parent
+		if($grand) { $places.Add($grand) }
+	}
+	foreach($root in @($parent, (Join-Path $env:USERPROFILE "Downloads"),
+			[Environment]::GetFolderPath("Desktop"), [Environment]::GetFolderPath("MyDocuments"),
+			"C:\Games", "D:\Games")) {
+		if(-not $root -or -not (Test-Path $root)) { continue }
+		foreach($dir in (Get-ChildItem -Path $root -Directory -ErrorAction SilentlyContinue)) {
+			$places.Add($dir.FullName)
+			foreach($sub in (Get-ChildItem -Path $dir.FullName -Directory -ErrorAction SilentlyContinue)) {
+				$places.Add($sub.FullName)
+			}
+		}
+	}
+	foreach($place in $places) {
+		if((Test-GameFolder $place) -and (Test-Path (Join-Path $place "images"))) { return $place }
+	}
+	return $null
 }
 
 function Find-Game {
@@ -62,10 +90,20 @@ function Find-Game {
 	return $null
 }
 
-Say "Endless Sky Accessible 1.0.0 installer."
+Say "Endless Sky Accessible installer."
+# An official download extracted near this installer is the clearest sign of
+# which game the player wants; then Steam; then other usual download places.
+if(-not $GamePath) {
+	$parent = Split-Path -Parent $here
+	foreach($place in @($parent, (Split-Path -Parent $parent))) {
+		if($place -and (Test-GameFolder $place) -and (Test-Path (Join-Path $place "images"))) { $GamePath = $place; break }
+	}
+}
 if(-not $GamePath) { $GamePath = Find-Game }
+if(-not $GamePath) { $GamePath = Find-DownloadedGame }
 if(-not (Test-GameFolder $GamePath)) {
 	Say "The Endless Sky game folder was not found automatically."
+	Say "If you use the official download from GitHub, this is the folder you extracted EndlessSky-win64-v0.11.4.zip to."
 	$GamePath = Ask "Type or paste the full path of your Endless Sky folder (the one containing credits.txt), then press Enter"
 	$GamePath = $GamePath.Trim('"', ' ')
 }
