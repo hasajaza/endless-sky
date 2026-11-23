@@ -42,7 +42,28 @@ namespace {
 
 		void OnOpen() override
 		{
-			Say(Title() + ". " + AccessInspector::Message(dialog) + " " + Controls(), SpeechPriority::FOCUS);
+			// Deleting a pilot asks to type the pilot's exact name, which is
+			// hard to get right by ear (capitals, a stray space). Fill it in;
+			// OK still has to be chosen, and Escape cancels.
+			string message = AccessInspector::Message(dialog);
+			static const string DELETE_PILOT = "delete the selected pilot, \"";
+			size_t start = message.find(DELETE_PILOT);
+			if(start != string::npos && AccessInspector::AcceptsInput(dialog))
+			{
+				start += DELETE_PILOT.size();
+				size_t end = message.find("\", and all their saved games", start);
+				if(end != string::npos)
+				{
+					string name = message.substr(start, end - start);
+					AccessInspector::SetInput(dialog, name);
+					Say("Delete pilot " + name + " and all their saved games? This cannot be undone. "
+						"The name is already filled in. Press Enter to delete, or Escape to cancel.",
+						SpeechPriority::FOCUS);
+					lastActive = AccessInspector::ActiveButton(dialog);
+					return;
+				}
+			}
+			Say(Title() + ". " + message + " " + Controls(), SpeechPriority::FOCUS);
 			lastActive = AccessInspector::ActiveButton(dialog);
 		}
 

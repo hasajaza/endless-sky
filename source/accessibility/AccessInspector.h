@@ -166,6 +166,12 @@ public:
 	// Dialog.
 	static std::string Message(const DialogPanel &p) { return p.text ? p.text->GetText() : std::string(); }
 	static const std::string &Input(const DialogPanel &p) { return p.input; }
+	// Fill in the text field as if typed, and refresh whether OK is allowed.
+	static void SetInput(DialogPanel &p, const std::string &value)
+	{
+		p.input = value;
+		p.isOkDisabled = !p.ValidateInput();
+	}
 	static bool AcceptsInput(const DialogPanel &p) { return p.AcceptsInput(); }
 	static int ActiveButton(const DialogPanel &p) { return p.activeButton; }
 	static int NumButtons(const DialogPanel &p) { return p.numButtons; }
