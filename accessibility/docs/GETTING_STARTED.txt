@@ -1,0 +1,129 @@
+Endless Sky Accessible - Getting started
+========================================
+
+This guide explains the basic loop of the game: take a job, fly to another
+star system, land, get paid. The keys below are the game's default keys.
+
+
+1. What the game is about
+-------------------------
+
+You own a small spaceship and must pay off its loan. You earn money by
+carrying passengers and cargo for jobs, by trading goods, and later by
+fighting pirates. Every trip follows the same steps:
+
+  on a planet:  take a job, buy goods, then depart
+  in space:     open the map, plan a route, jump
+  arrived:      land on the planet the job asks for
+
+You do not have to steer the ship yourself for any of this. The game's
+autopilot flies the ship when you press J (jump) or L (land).
+
+
+2. On a planet
+--------------
+
+When you land you hear "Landed on" and a list of places. Up and Down arrows
+move through them, Enter opens one. The letters work too:
+
+  J  Job Board: jobs you can take. Up and Down choose a job, A accepts it.
+     A job says where to go and what it pays.
+  T  Trading: buy goods cheaply here and sell them where the price is high.
+     Plus buys one ton, Minus sells one ton.
+  P  Spaceport: news and special story missions.
+  S  Shipyard, O Outfitter: buy ships and equipment.
+  I  Player Info: your money, ships and missions.
+  D  Depart: take off into space.
+
+Escape on a planet opens the main menu (E on the main menu returns to the game).
+
+
+3. Planning a route on the map
+------------------------------
+
+After taking off, you hear what to do next, for example
+"No route planned. Press M for the map..."
+
+  M          open the map. It says where you are and lists your mission
+             destinations.
+  Right      the first choice is your mission destination, for example
+             "Mission Passenger to New Greenland: Arcturus, 1 jump away".
+             Right and Left go through the other systems you can reach,
+             nearest first.
+  Enter      plans the route to the system you chose. It says how many jumps
+             and how much fuel the route needs.
+  M again    closes the map.
+
+Systems you have never visited may be called "unexplored system": the game
+does not show their names until you go there or buy a map of the area at an
+outfitter.
+
+
+4. Jumping
+----------
+
+  Take off first (D on the planet). On a planet, J opens the job board.
+
+  J  jump. The autopilot turns the ship and jumps to the next system of the
+     route. You hear "Entering hyperspace" and then "Entering the ... system".
+
+If the route has several jumps, press J again in each system. After every
+arrival you hear the next step, for example "Next jump: Sol. Press J to jump."
+
+
+5. Landing
+----------
+
+When the system you arrive in has your mission's planet, you hear
+"Your mission destination New Greenland is in this system. Press L to land."
+
+  L  land. The autopilot flies to the planet and lands. Press L again before
+     landing to choose another planet of the system.
+
+When you land on the right planet, the job is finished and you are paid.
+
+
+6. Finding out where you are
+----------------------------
+
+These work at any time while flying:
+
+  Control+D  destination: your route, the next jump and what to do next
+  Control+L  location: the system you are in
+  Control+S  status: shields, hull, fuel
+  Control+N  nearby planets and where they are
+  Control+M  your missions
+  Control+R  repeat the last announcement
+
+On any screen, F2 describes the screen; press F2 again to hear its keys one
+at a time, and Shift+F2 to go back.
+
+
+Only press J when there is a route. Without one, the game jumps to whatever
+system your ship faces, and you hear a warning; press an arrow key to cancel.
+
+7. Fuel
+-------
+
+Each jump uses fuel (usually 100). You can refuel on most inhabited planets,
+which happens automatically when you land. If the map says
+"not enough fuel", land somewhere to refuel first.
+
+If you run out of fuel in an empty system: press Shift+Down to stop, press
+Control+F to hear friendly ships, select one with N, press T to hail it,
+then H to ask for help. It flies over and gives you fuel.
+
+
+8. Your first trip
+------------------
+
+The game starts with a story: an old captain named James asks for a ride to
+New Greenland, one jump away. To do it:
+
+  1. On New Boston, press T for trading, buy Medical goods (he suggests it),
+     then Escape and D to depart.
+  2. Press M, then Right: "Mission ... Arcturus". Press Enter, then M.
+  3. Press J and wait for "Entering the Arcturus system".
+  4. When you hear "Your mission destination New Greenland is in this
+     system", press L.
+  5. On New Greenland, press T and sell your Medical goods (Minus or E).

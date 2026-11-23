@@ -1,3 +1,5 @@
+> **Endless Sky Accessible** — this fork contains an unofficial screen reader accessibility mod for blind players, on the `accessibility` branch. It is not made or endorsed by the Endless Sky developers. See [accessibility/README.md](accessibility/README.md) for what it does, downloads and documentation.
+
 # Endless Sky
 
 Explore other star systems. Earn money by trading, carrying passengers, or completing missions. Use your earnings to buy a better ship or to upgrade the weapons and engines on your current one. Blow up pirates. Take sides in a civil war. Or leave human space behind and hope to find some friendly aliens whose culture is more civilized than your own...
