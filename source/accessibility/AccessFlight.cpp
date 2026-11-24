@@ -21,6 +21,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 #include "AccessInspector.h"
 #include "AccessSpeech.h"
 
+#include "../DistanceMap.h"
 #include "../Account.h"
 #include "../audio/Audio.h"
 #include "../AsteroidField.h"
@@ -1346,35 +1347,112 @@ string AccessFlight::ToggleBeacon()
 
 
 
+namespace {
+	// "2 jumps north-west", "in this system", or "no known route, east".
+	string TravelTo(const System *target, const DistanceMap &distance, const System *here)
+	{
+		if(!target || !here)
+			return string();
+		if(target == here)
+			return "in this system";
+		string direction = AccessFormat::CompassDirection(target->Position() - here->Position());
+		if(!distance.HasRoute(*target))
+			return "no known route, " + direction;
+		return AccessFormat::Plural(distance.Days(*target), "jump") + " " + direction;
+	}
+
+	string SystemLabel(const System *system)
+	{
+		return system ? "the " + system->DisplayName() + " system" : string("an unknown system");
+	}
+}
+
+
+
 string AccessFlight::MissionSummary(const Mission &mission, bool accepted)
 {
 	PlayerInfo &player = Player();
+	const System *here = player.GetSystem();
+	DistanceMap distance(player, here);
 	vector<string> parts;
+	const System *destination = mission.Destination() ? mission.Destination()->GetSystem() : nullptr;
 	if(mission.Destination())
 	{
-		const Planet *planet = mission.Destination();
-		string where = "Destination " + planet->DisplayName();
-		if(planet->GetSystem())
-			where += " in the " + planet->GetSystem()->DisplayName() + " system";
+		string where = "Destination " + mission.Destination()->DisplayName() + " in " + SystemLabel(destination);
+		string travel = TravelTo(destination, distance, here);
+		if(!travel.empty())
+			where += ", " + travel;
 		parts.push_back(where);
 	}
-	int stopovers = 0;
+	// Each stopover and waypoint still to visit, with where it is.
 	for(const Planet *planet : mission.Stopovers())
 		if(!mission.VisitedStopovers().contains(planet))
-			++stopovers;
-	if(stopovers)
-		parts.push_back(AccessFormat::Plural(stopovers, "stopover") + " remaining");
-	int waypoints = 0;
+		{
+			string where = "stopover " + planet->DisplayName() + " in " + SystemLabel(planet->GetSystem());
+			string travel = TravelTo(planet->GetSystem(), distance, here);
+			if(!travel.empty())
+				where += ", " + travel;
+			parts.push_back(where);
+		}
 	for(const System *system : mission.Waypoints())
 		if(!mission.VisitedWaypoints().contains(system))
-			++waypoints;
-	if(waypoints)
-		parts.push_back(AccessFormat::Plural(waypoints, "waypoint") + " remaining");
+		{
+			string where = "waypoint " + SystemLabel(system);
+			string travel = TravelTo(system, distance, here);
+			if(!travel.empty())
+				where += ", " + travel;
+			parts.push_back(where);
+		}
 	if(mission.Deadline())
 	{
-		int days = player.RemainingDeadline(mission);
-		parts.push_back("deadline " + mission.Deadline().ToString() + ", "
-			+ AccessFormat::Plural(days, "day") + " left");
+		// Days left, counted the way the game does (the deadline day itself
+		// still counts).
+		int days = mission.Deadline() - player.GetDate() + 1;
+		string text = "deadline " + mission.Deadline().ToString() + ", " + AccessFormat::Plural(max(days, 0), "day")
+			+ " left";
+		// Rough travel time: stopovers first (each takes a day for landing),
+		// nearest first, then the destination, as the game estimates it.
+		if(destination && distance.HasRoute(*destination))
+		{
+			int travel = 0;
+			bool known = true;
+			const System *from = here;
+			set<const System *> toVisit;
+			for(const Planet *planet : mission.Stopovers())
+				if(!mission.VisitedStopovers().contains(planet))
+				{
+					toVisit.insert(planet->GetSystem());
+					++travel;
+				}
+			while(!toVisit.empty() && known)
+			{
+				DistanceMap step(player, from);
+				const System *closest = nullptr;
+				for(const System *system : toVisit)
+					if(step.HasRoute(*system) && (!closest || step.Days(*system) < step.Days(*closest)))
+						closest = system;
+				if(!closest)
+					known = false;
+				else
+				{
+					travel += step.Days(*closest);
+					from = closest;
+					toVisit.erase(closest);
+				}
+			}
+			if(known)
+			{
+				DistanceMap last(player, from);
+				if(last.HasRoute(*destination))
+				{
+					travel += last.Days(*destination);
+					text += ", the trip takes about " + AccessFormat::Plural(travel, "day");
+					if(travel > days)
+						text += ", too late to make it";
+				}
+			}
+		}
+		parts.push_back(text);
 	}
 	if(mission.CargoSize())
 		parts.push_back(AccessFormat::Plural(mission.CargoSize(), "ton") + " of " + mission.Cargo());
@@ -1386,7 +1464,47 @@ string AccessFlight::MissionSummary(const Mission &mission, bool accepted)
 		parts.push_back("failed");
 	else if(accepted && mission.IsSatisfied(player))
 		parts.push_back("ready to complete");
-	string text = parts.empty() ? string() : AccessFormat::Sentence(AccessFormat::List(parts)) + ". ";
+	// For a job on offer: does it fit the trips already accepted?
+	if(!accepted && destination && here)
+	{
+		string fit;
+		int bestJumps = -1;
+		for(const Mission &other : player.Missions())
+		{
+			if(!other.IsVisible() || !other.Destination() || !other.Destination()->GetSystem())
+				continue;
+			const System *target = other.Destination()->GetSystem();
+			if(target == destination)
+			{
+				fit = "same system as your mission " + other.DisplayName();
+				bestJumps = 0;
+				break;
+			}
+			if(distance.HasRoute(*target))
+			{
+				vector<const System *> route = distance.Plan(*target);
+				if(find(route.begin(), route.end(), destination) != route.end())
+				{
+					fit = "on the way to your mission " + other.DisplayName();
+					bestJumps = 0;
+					break;
+				}
+			}
+			DistanceMap from(player, target);
+			if(from.HasRoute(*destination) && (bestJumps < 0 || from.Days(*destination) < bestJumps))
+			{
+				bestJumps = from.Days(*destination);
+				fit = AccessFormat::Plural(bestJumps, "jump") + " from the destination of your mission "
+					+ other.DisplayName();
+			}
+		}
+		if(!fit.empty())
+			parts.push_back(fit);
+	}
+	// One sentence per fact: the parts contain commas themselves.
+	string text;
+	for(const string &part : parts)
+		text += AccessFormat::Sentence(part) + ". ";
 	text += mission.Description();
 	return text;
 }

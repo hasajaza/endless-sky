@@ -632,7 +632,7 @@ namespace {
 					index = i;
 			index = (index < 0) ? (step > 0 ? 0 : count - 1) : (index + step + count) % count;
 			valueLabel = values[static_cast<size_t>(index)].first;
-			return to_string(index + 1) + " of " + to_string(count) + ", " + ValueText(values[static_cast<size_t>(index)]);
+			return ValueText(values[static_cast<size_t>(index)]) + " " + to_string(index + 1) + " of " + to_string(count) + ".";
 		}
 
 		string StepStat(int step)
@@ -642,7 +642,7 @@ namespace {
 				return "No ship selected.";
 			int count = static_cast<int>(Stats().size());
 			statIndex = (statIndex < 0) ? (step > 0 ? 0 : count - 1) : (statIndex + step + count) % count;
-			return to_string(statIndex + 1) + " of " + to_string(count) + ", " + StatText(*ship, statIndex);
+			return StatText(*ship, statIndex) + " " + to_string(statIndex + 1) + " of " + to_string(count) + ".";
 		}
 
 		// "2 of 3": where the item is in the store's list.

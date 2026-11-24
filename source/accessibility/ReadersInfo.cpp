@@ -113,8 +113,8 @@ namespace {
 			int index = state.SelectedIndex();
 			if(index < 0 || index >= static_cast<int>(state.Ships().size()))
 				return "No ship selected.";
-			string text = "Ship " + to_string(index + 1) + " of " + to_string(state.Ships().size()) + ": "
-				+ ShipSummary(*state.Ships()[static_cast<size_t>(index)]);
+			string text = ShipSummary(*state.Ships()[static_cast<size_t>(index)]) + ". Ship "
+				+ to_string(index + 1) + " of " + to_string(state.Ships().size());
 			if(state.AllSelected().size() > 1)
 				text += ". " + to_string(state.AllSelected().size()) + " ships selected";
 			return text + ".";
@@ -406,8 +406,8 @@ namespace {
 			int count = AccessInspector::PlunderCount(boarding);
 			if(index < 0 || index >= count)
 				return "Nothing selected.";
-			string text = "Item " + to_string(index + 1) + " of " + to_string(count) + ": "
-				+ AccessInspector::PlunderLine(boarding, index) + ".";
+			string text = AccessFormat::TrimPeriod(AccessInspector::PlunderLine(boarding, index)) + ". "
+				+ to_string(index + 1) + " of " + to_string(count) + ".";
 			if(!AccessInspector::CanTake(boarding))
 				text += " " + AccessInspector::CannotTakeReason(boarding);
 			return text;

@@ -275,8 +275,8 @@ namespace {
 					reviewIndex = 0;
 				else
 					reviewIndex = count - 1;
-				Say("Paragraph " + to_string(reviewIndex + 1) + " of " + to_string(count) + ". "
-					+ texts[static_cast<size_t>(reviewIndex)], SpeechPriority::REQUESTED);
+				Say(AccessFormat::TrimPeriod(texts[static_cast<size_t>(reviewIndex)]) + ". Paragraph "
+					+ to_string(reviewIndex + 1) + " of " + to_string(count) + ".", SpeechPriority::REQUESTED);
 				return true;
 			}
 			lastChoice = AccessInspector::Choice(conversation);
@@ -343,11 +343,10 @@ namespace {
 			vector<string> list = AccessInspector::Choices(conversation);
 			if(index < 0 || index >= static_cast<int>(list.size()))
 				return string();
-			string text = "Response " + to_string(index + 1) + " of " + to_string(list.size()) + ": "
-				+ list[static_cast<size_t>(index)];
+			string text = AccessFormat::TrimPeriod(list[static_cast<size_t>(index)]);
 			if(!AccessInspector::ChoiceIsActive(conversation, index))
-				text += ". Unavailable";
-			return text;
+				text += ", unavailable";
+			return text + ". " + to_string(index + 1) + " of " + to_string(list.size());
 		}
 
 		string CurrentState()
@@ -360,9 +359,8 @@ namespace {
 					: CurrentName()) + ". Tab switches fields, Enter confirms.";
 			vector<string> list = AccessInspector::Choices(conversation);
 			if(list.size() == 1)
-				return "One response: " + list.front() + ". Press Enter.";
-			return to_string(list.size()) + " responses. " + ChoiceText(AccessInspector::Choice(conversation))
-				+ ". Use Up and Down to hear the others.";
+				return AccessFormat::TrimPeriod(list.front()) + ". Only response, press Enter.";
+			return ChoiceText(AccessInspector::Choice(conversation)) + ". Up and Down for the others.";
 		}
 
 		void Announce(bool force)

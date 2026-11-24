@@ -274,8 +274,8 @@ namespace {
 			helpIndex = -1;
 			return HelpSummary(reader);
 		}
-		return to_string(helpIndex + 1) + " of " + to_string(count) + ": "
-			+ AccessFormat::TrimPeriod(helpKeys[helpIndex]) + ".";
+		return AccessFormat::TrimPeriod(helpKeys[helpIndex]) + ". " + to_string(helpIndex + 1) + " of "
+			+ to_string(count) + ".";
 	}
 
 	vector<ReviewGroup> KeyReference()
@@ -507,8 +507,8 @@ namespace {
 			return "You have no active missions.";
 		missionIndex = (missionIndex + 1) % static_cast<int>(visible.size());
 		const Mission &mission = *visible[static_cast<size_t>(missionIndex)];
-		string text = "Mission " + to_string(missionIndex + 1) + " of " + to_string(visible.size()) + ": "
-			+ mission.DisplayName() + ". ";
+		string text = mission.DisplayName() + ", mission " + to_string(missionIndex + 1) + " of "
+			+ to_string(visible.size()) + ". ";
 		text += AccessFlight::MissionSummary(mission);
 		return text;
 	}

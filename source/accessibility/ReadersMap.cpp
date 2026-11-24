@@ -609,6 +609,12 @@ namespace {
 
 		void BuildReview(vector<ReviewGroup> &groups) override
 		{
+			// First: the mission selected with the arrow keys, so that
+			// Control+Space reads that one in full.
+			ReviewGroup selected{"Selected mission", {}};
+			selected.items.emplace_back([this]() { return Current(); });
+			selected.items.back().detail = [this]() { return Current(); };
+			groups.push_back(std::move(selected));
 			ReviewGroup available{"Available jobs", {}};
 			for(const Mission &mission : AccessInspector::Available(missions))
 			{
@@ -656,8 +662,8 @@ namespace {
 			if(availableIt != available.end())
 			{
 				int index = 1 + static_cast<int>(distance(available.begin(), availableIt));
-				string text = "Available job " + to_string(index) + " of " + to_string(available.size()) + ": "
-					+ availableIt->DisplayName() + ". ";
+				string text = availableIt->DisplayName() + ", job " + to_string(index) + " of "
+					+ to_string(available.size()) + ". ";
 				if(AccessInspector::CanAccept(missions))
 					text += "Press A to accept. ";
 				else if(!availableIt->HasSpace(Player()))
@@ -677,8 +683,8 @@ namespace {
 						if(it == acceptedIt)
 							index = count;
 					}
-				return "Accepted mission " + to_string(index) + " of " + to_string(count) + ": "
-					+ acceptedIt->DisplayName() + ". " + AccessFlight::MissionSummary(*acceptedIt);
+				return acceptedIt->DisplayName() + ", accepted mission " + to_string(index) + " of "
+					+ to_string(count) + ". " + AccessFlight::MissionSummary(*acceptedIt);
 			}
 			if(available.empty())
 				return "No jobs are available here.";
