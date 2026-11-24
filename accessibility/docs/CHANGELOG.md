@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.0.18 (2026-11-24)
+
+Fixes for reports from players on audiogames.net:
+
+- The content now comes first and the position after it: conversation responses
+  ("Sounds good! 1 of 2"), F2 keys, shop values, the ship list, boarding loot, the job
+  board ("Rush delivery to Ingot, job 3 of 25") and Control+M.
+- Missions say where every remaining stopover and waypoint is (planet, system, number of
+  jumps and direction), and the destination's jumps and direction.
+- Deadlines: jobs on offer always said "0 days left". The days left are now counted from
+  the date, and the estimated trip length is given ("the trip takes about 4 days"), with a
+  warning when it is too late.
+- Jobs on offer say how they fit your accepted missions: in the same system, on the way to
+  your mission's destination, or how many jumps from it.
+- Job board: Control+Space read the first job of the list instead of the selected one; it
+  now reads the selected mission.
+
 ## 1.0.17 (2026-11-23)
 
 - Works with the free official download of Endless Sky from GitHub

@@ -1,4 +1,4 @@
-# Endless Sky Accessible 1.0.17 - keyboard reference
+# Endless Sky Accessible 1.0.18 - keyboard reference
 
 This reference lists the game's own keys (unchanged) and the extra accessibility keys.
 All game keys are the defaults of Endless Sky 0.11.4. If you have changed a key in
