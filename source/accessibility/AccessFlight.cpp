@@ -104,6 +104,8 @@ namespace {
 
 	// Beacon.
 	bool beaconOn = false;
+	// Whether "beacon silent, no target" was already said for this gap.
+	bool beaconSilentSaid = false;
 	int beaconTimer = 0;
 
 	PlayerInfo &Player()
@@ -659,8 +661,14 @@ namespace {
 		if(!found)
 		{
 			beaconTimer = 60;
+			if(!beaconSilentSaid)
+			{
+				AccessSpeech::Say("Beacon silent: no target.", SpeechPriority::INFO);
+				beaconSilentSaid = true;
+			}
 			return;
 		}
+		beaconSilentSaid = false;
 		Point delta = position - flagship.Position();
 		double distance = delta.Length();
 		double degrees = AccessFormat::RelativeDegrees(flagship.Facing(), delta);
@@ -1335,14 +1343,38 @@ string AccessFlight::Weapons()
 
 
 
+namespace {
+	bool BeaconHasTarget(const Ship &flagship)
+	{
+		shared_ptr<Ship> target = flagship.GetTargetShip();
+		return (target && target->GetSystem() == flagship.GetSystem() && target->IsTargetable())
+			|| flagship.GetTargetStellar() || flagship.GetTargetAsteroid()
+			|| (flagship.GetTargetSystem() && flagship.GetSystem());
+	}
+}
+
+
+
 string AccessFlight::ToggleBeacon()
 {
 	beaconOn = !beaconOn;
 	beaconTimer = 0;
+	beaconSilentSaid = false;
+	if(beaconOn && !AccessAudio::IsAvailable())
+		return "Beacon on, but the sound system could not be started, so no beeps can be played.";
 	if(beaconOn && !AccessContext::AudioCues())
-		return "Beacon on, but audio cues are turned off or unavailable.";
-	return beaconOn ? "Beacon on. It points to your target ship, landing target, asteroid or hyperspace "
-		"destination. Higher pitch means ahead, lower means behind." : "Beacon off.";
+		return "Beacon on, but audio cues are turned off. Press Control+F10 to turn them on.";
+	if(!beaconOn)
+		return "Beacon off.";
+	string text = "Beacon on. It beeps toward your target ship, landing target, asteroid or hyperspace "
+		"destination. Higher pitch means ahead, lower means behind.";
+	const Ship *flagship = Player().Flagship();
+	if(flagship && !BeaconHasTarget(*flagship))
+	{
+		text += " There is no target yet, so it is silent: choose one with N, R, V, L, or a route on the map.";
+		beaconSilentSaid = true;
+	}
+	return text;
 }
 
 

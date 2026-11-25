@@ -681,7 +681,13 @@ namespace {
 			}
 			case AccessAction::TOGGLE_CUES:
 				audioCues = !audioCues;
-				AccessSpeech::Say(audioCues ? "Audio cues on." : "Audio cues off.", SpeechPriority::REQUESTED);
+				if(audioCues && !AccessAudio::IsAvailable())
+					AccessSpeech::Say("Audio cues on, but the sound system could not be started, so they cannot be "
+						"heard.", SpeechPriority::REQUESTED);
+				else
+					AccessSpeech::Say(audioCues ? "Audio cues on: sounds for shield and hull hits, a chime when your "
+						"target comes into weapon range, and the beacon (Control+B)." : "Audio cues off.",
+						SpeechPriority::REQUESTED);
 				AccessContext::SaveSettings();
 				return;
 			case AccessAction::TOGGLE_CHATTER:
