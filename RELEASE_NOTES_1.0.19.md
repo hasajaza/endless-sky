@@ -1,10 +1,10 @@
-Endless Sky Accessible 1.0.18, for Endless Sky 0.11.4 on Windows 10 and 11.
+Endless Sky Accessible 1.0.19, for Endless Sky 0.11.4 on Windows 10 and 11.
 
 Unofficial screen reader accessibility mod. Not made or endorsed by the Endless Sky developers. Developed with AI assistance (Claude, by Anthropic).
 
 Requirements: Endless Sky 0.11.4 (free), from Steam or the official GitHub download (EndlessSky-win64-v0.11.4.zip), and a screen reader (NVDA or JAWS) or Windows speech.
 
-Install: download EndlessSky_Access_1.0.18.zip below, extract it, run Install.bat, then start "Endless Sky Accessible" from the desktop shortcut. Start with docs/GETTING_STARTED.txt.
+Install: download EndlessSky_Access_1.0.19.zip below, extract it, run Install.bat, then start "Endless Sky Accessible" from the desktop shortcut. Start with docs/GETTING_STARTED.txt.
 
 Highlights:
 - Every screen spoken, with F2 describing the screen and reading its keys one at a time.
