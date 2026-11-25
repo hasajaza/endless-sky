@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.19 (2026-11-25)
+
+- The audio cues were working, but it was not clear when to expect them. Control+B now
+  says when there is no target yet (the beacon stays silent until you choose one with N,
+  R, V, L or a route on the map), and "Beacon silent: no target" is said once when the
+  target goes away. Control+F10 says which sounds exist (shield and hull hits, the
+  weapon-range chime and the beacon) and warns if the sound system could not start.
+
 ## 1.0.18 (2026-11-24)
 
 Fixes for reports from players on audiogames.net:
