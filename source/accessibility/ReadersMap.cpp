@@ -43,6 +43,15 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 using namespace std;
 
 namespace {
+	// The game shows trade prices only for systems with an inhabited planet
+	// the flagship can land on.
+	bool HasMarket(const System *system)
+	{
+		return system && system->IsInhabited(AccessContext::Player().Flagship());
+	}
+
+
+
 	string SystemName(const System *system)
 	{
 		if(!system)
@@ -109,8 +118,12 @@ namespace {
 		const auto &commodities = GameData::Commodities();
 		if(canView && commodity >= 0 && commodity < static_cast<int>(commodities.size()))
 		{
+			// Like the game's map: only inhabited systems have a market,
+			// even though every system has price data.
 			const string &name = commodities[static_cast<size_t>(commodity)].name;
-			if(system->Trade(name))
+			if(!HasMarket(system))
+				parts.push_back("no trading here, uninhabited");
+			else if(system->Trade(name))
 				parts.push_back(name + " " + AccessFormat::Credits(system->Trade(name)));
 		}
 		else if(!canView && commodity >= 0 && commodity < static_cast<int>(commodities.size()))
@@ -537,14 +550,18 @@ namespace {
 				const string &name = commodities[static_cast<size_t>(commodity)].name;
 				string text = "Trade good " + name;
 				const System *system = Player().GetSystem();
-				if(system && Player().CanView(*system) && system->Trade(name))
+				if(system && Player().CanView(*system) && HasMarket(system) && system->Trade(name))
 					text += ": " + AccessFormat::Credits(system->Trade(name)) + " here in " + SystemName(system);
+				else if(system && !HasMarket(system))
+					text += ". No trading here in " + SystemName(system);
 				// Also give the price at the destination chosen with Left and
 				// Right, so goods can be compared without moving away from it.
 				if(destinationIndex >= 0 && destinationIndex < static_cast<int>(destinations.size()))
 				{
 					const System *chosen = destinations[static_cast<size_t>(destinationIndex)].first;
-					if(Player().CanView(*chosen) && chosen->Trade(name))
+					if(Player().CanView(*chosen) && !HasMarket(chosen))
+						text += ". No trading in " + SystemName(chosen) + ": it is uninhabited";
+					else if(Player().CanView(*chosen) && chosen->Trade(name))
 						text += ". " + AccessFormat::Credits(chosen->Trade(name)) + " in " + SystemName(chosen);
 					else
 						text += ". Price in " + SystemName(chosen) + " unknown: you have not been there or bought a map"
