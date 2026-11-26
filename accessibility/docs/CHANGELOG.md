@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.20 (2026-11-26)
+
+- Map trade prices: the mod gave prices for every system, including systems with no
+  inhabited planet, where nothing can be bought or sold. The game itself only shows prices
+  for inhabited systems. Uninhabited systems now say "no trading here, uninhabited", also
+  when you change the trade good with Up and Down.
+
 ## 1.0.19 (2026-11-25)
 
 - The audio cues were working, but it was not clear when to expect them. Control+B now
