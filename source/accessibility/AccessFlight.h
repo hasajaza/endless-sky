@@ -49,6 +49,8 @@ public:
 	// Called for each game message; returns true if it replaced the message
 	// with its own announcement.
 	static bool OnGameMessage(const std::string &text);
+	// What a fleet formation looks like, by its name in the game data.
+	static std::string FormationDescription(const std::string &name);
 	static std::string Destination();
 	static std::string Nearby();
 	static std::string Hostiles();

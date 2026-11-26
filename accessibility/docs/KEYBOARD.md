@@ -1,4 +1,4 @@
-# Endless Sky Accessible 1.0.20 - keyboard reference
+# Endless Sky Accessible 1.0.21 - keyboard reference
 
 This reference lists the game's own keys (unchanged) and the extra accessibility keys.
 All game keys are the defaults of Endless Sky 0.11.4. If you have changed a key in
@@ -53,8 +53,8 @@ game starts). Change the help key in "accessibility keys.txt" in that case.
 - Control+N: planets, stations and stars in this system with landing status,
   bearing and distance.
 - Control+H: hostile ships in sight, nearest first.
-- Control+F: your fleet (condition and position of each ship), and other friendly
-  ships in sight.
+- Control+F: your fleet (condition, position and formation of each ship), and other
+  friendly ships in sight.
 - Control+M: your active missions. Press again for the next mission.
 - Control+K: credits, cargo, passengers and free bunks.
 - Control+G: weapons, ammunition, selected secondary weapon, weapon ranges, energy,
@@ -123,6 +123,10 @@ not available there.
   Shift+digit: add a group to the selection.
 - Fleet orders: F fight my target, G gather around me, H hold position,
   Y toggle hold fire, U toggle escort ammunition use, Z harvest flotsam.
+- Shift+G: formation. Each press puts your selected escorts (or all escorts if none are
+  selected) into the next of the 14 formations and says its name and shape. After the
+  last one, the next press turns formation flying off. Formations only arrange where the
+  escorts fly; they do not change speed, shields or weapons.
 - M: map. I: player info. Slash (/): message log. F1: help. Escape: main menu.
 
 ### Planet

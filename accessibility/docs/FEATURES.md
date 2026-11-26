@@ -127,6 +127,8 @@ hull hit, target in range, end of a list.
   aids; the mod does not aim or fire for you.
 - Fleet: Control+F lists your ships; the game's fleet keys issue orders and the game's
   messages confirm them; escorts can be selected from the "Your fleet" review list.
+- Formations: Shift+G cycles the escort formations; each change is spoken with the
+  formation's name and shape, and Control+F says each escort's formation.
 - Mining: V selects the nearest asteroid; the "Minable asteroids" list gives the 20
   nearest; collection messages are spoken.
 - Boarding: the ship, each item of loot (value, size, whether you can take it and why

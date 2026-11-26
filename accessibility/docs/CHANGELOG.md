@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.21 (2026-11-26)
+
+- Fleet formations: Shift+G (the game's own key) now always speaks, at every verbosity
+  level, with the formation name, a short description of its shape and how to go on.
+  Control+F says which formation each escort is flying in.
+
 ## 1.0.20 (2026-11-26)
 
 - Map trade prices: the mod gave prices for every system, including systems with no

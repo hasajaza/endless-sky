@@ -22,6 +22,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 #include "AccessSpeech.h"
 
 #include "../DistanceMap.h"
+#include "../FormationPattern.h"
 #include "../Account.h"
 #include "../audio/Audio.h"
 #include "../AsteroidField.h"
@@ -983,8 +984,53 @@ bool AccessFlight::ArrivalPause()
 
 
 
+string AccessFlight::FormationDescription(const string &name)
+{
+	// From the comments in data/formations.txt. Formations only arrange where
+	// escorts fly around the flagship; they change no ship values.
+	static const map<string, string> DESCRIPTIONS = {
+		{"Atomic", "groups in front and on both sides, keeping their directions on the map instead of turning with you"},
+		{"Circle", "a circle around you"},
+		{"Delta (tailing)", "a triangle behind you"},
+		{"Diamond", "a diamond shape around you"},
+		{"Echelon (left)", "a diagonal line behind you to the left"},
+		{"Echelon (right)", "a diagonal line behind you to the right"},
+		{"Hexagon", "a six-sided ring around you"},
+		{"Line (sides)", "a line to your left and right"},
+		{"Line (trailing)", "a line behind you"},
+		{"Nabla (trailing)", "a triangle with you at the front and its point behind"},
+		{"Square", "a square block around you"},
+		{"Vic", "a V shape, two legs angled back behind you"},
+		{"X", "an X shape that turns with you"},
+		{"X stable", "an X or plus shape that does not turn with you"},
+	};
+	auto it = DESCRIPTIONS.find(name);
+	return it == DESCRIPTIONS.end() ? string() : it->second;
+}
+
+
+
 bool AccessFlight::OnGameMessage(const string &text)
 {
+	// "2 ships will assume "Vic" formation." is a low priority message that
+	// is otherwise only spoken at the verbose level, but it is the only answer
+	// to Shift+G, so always say it, with what the formation looks like.
+	static const string ASSUME = "formation.";
+	size_t quote = text.find(" will assume \"");
+	if(quote != string::npos && text.ends_with("\" " + ASSUME))
+	{
+		size_t start = quote + strlen(" will assume \"");
+		string name = text.substr(start, text.size() - start - ASSUME.size() - 2);
+		string description = FormationDescription(name);
+		AccessSpeech::Say(text + (description.empty() ? string() : " Escorts fly in " + description + ".")
+			+ " Shift+G again for the next formation.", SpeechPriority::REQUESTED);
+		return true;
+	}
+	if(text.find(" will no longer fly in formation.") != string::npos)
+	{
+		AccessSpeech::Say(text + " Shift+G again to start with the first formation.", SpeechPriority::REQUESTED);
+		return true;
+	}
 	// With no planned route, the jump key picks whichever linked system the
 	// ship is facing. The game only says "Engaging autopilot to jump to the
 	// X system", so make the consequence clear.
@@ -1220,6 +1266,8 @@ string AccessFlight::Fleet()
 		string line = ship->GivenName() + ", " + ship->DisplayModelName();
 		if(ship.get() == flagship)
 			line += ", flagship";
+		else if(ship->GetFormationPattern())
+			line += ", " + ship->GetFormationPattern()->TrueName() + " formation";
 		line += ", shields " + Fraction(ship->ShieldFraction()) + ", hull " + Fraction(ship->HullFraction());
 		if(ship->IsDisabled())
 			line += ", disabled";

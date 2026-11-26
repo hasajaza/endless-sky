@@ -16,6 +16,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 #include "es-test.hpp"
 
 #include "../../../../source/accessibility/AccessCapture.h"
+#include "../../../../source/accessibility/AccessFlight.h"
 #include "../../../../source/accessibility/AccessFormat.h"
 #include "../../../../source/accessibility/AccessReaders.h"
 #include "../../../../source/accessibility/AccessSpeech.h"
@@ -169,3 +170,11 @@ TEST_CASE( "Captured screen text is grouped into lines", "[accessibility][captur
 
 
 } // test namespace
+
+TEST_CASE( "Formation messages are recognised", "[accessibility]" ) {
+	CHECK( AccessFlight::FormationDescription("Vic") == "a V shape, two legs angled back behind you" );
+	CHECK( AccessFlight::FormationDescription("unknown").empty() );
+	CHECK( AccessFlight::OnGameMessage("2 ships will assume \"Vic\" formation.") );
+	CHECK( AccessFlight::OnGameMessage("1 ship will no longer fly in formation.") );
+}
+
