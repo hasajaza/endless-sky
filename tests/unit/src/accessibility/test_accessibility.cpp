@@ -178,3 +178,8 @@ TEST_CASE( "Formation messages are recognised", "[accessibility]" ) {
 	CHECK( AccessFlight::OnGameMessage("1 ship will no longer fly in formation.") );
 }
 
+TEST_CASE( "Speed text", "[accessibility]" ) {
+	CHECK( AccessFlight::SpeedText(0.5, 300.) == "stopped" );
+	CHECK( AccessFlight::SpeedText(120., 300.) == "speed 120 of 300" );
+	CHECK( AccessFlight::SpeedText(299., 300.) == "speed 299, full speed" );
+}

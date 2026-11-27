@@ -127,6 +127,8 @@ namespace {
 				shipChatter = node.Value(1) != 0.;
 			else if(key == "arrival pause")
 				AccessFlight::SetArrivalPause(node.Value(1) != 0.);
+			else if(key == "motion announcements")
+				AccessFlight::SetMotionAnnouncements(node.Value(1) != 0.);
 			else if(key == "cue volume")
 				AccessAudio::SetVolume(node.Value(1));
 			else if(key == "sapi fallback")
@@ -621,6 +623,7 @@ namespace {
 			case AccessAction::TOGGLE_CUES:
 			case AccessAction::TOGGLE_CHATTER:
 			case AccessAction::TOGGLE_ARRIVAL_PAUSE:
+			case AccessAction::TOGGLE_MOTION:
 				return false;
 			default:
 				return true;
@@ -701,6 +704,14 @@ namespace {
 				AccessSpeech::Say(AccessFlight::ArrivalPause()
 					? "Pause on arrival on: the game pauses in each new system. Press P to continue."
 					: "Pause on arrival off.", SpeechPriority::REQUESTED);
+				AccessContext::SaveSettings();
+				return;
+			case AccessAction::TOGGLE_MOTION:
+				AccessFlight::SetMotionAnnouncements(!AccessFlight::MotionAnnouncements());
+				AccessSpeech::Say(AccessFlight::MotionAnnouncements()
+					? "Motion announcements on: heading while you turn, full speed and stopped."
+					: "Motion announcements off. Control+O still tells you speed and heading.",
+					SpeechPriority::REQUESTED);
 				AccessContext::SaveSettings();
 				return;
 			case AccessAction::REVIEW_ACTIVATE:
@@ -877,6 +888,7 @@ void AccessContext::SaveSettings()
 	out.Write("cue volume", AccessAudio::Volume());
 	out.Write("ship chatter", shipChatter ? 1 : 0);
 	out.Write("arrival pause", AccessFlight::ArrivalPause() ? 1 : 0);
+	out.Write("motion announcements", AccessFlight::MotionAnnouncements() ? 1 : 0);
 	out.Write("sapi fallback", AccessSpeech::UseSapiFallback() ? 1 : 0);
 	out.WriteComment("Speech engine: -1 = automatic; otherwise the Universal Speech engine number.");
 	out.Write("speech engine", AccessSpeech::ForcedEngine());
@@ -888,6 +900,7 @@ void AccessContext::SaveSettings()
 void Accessibility::SetTestMode()
 {
 	AccessFlight::SetArrivalPause(false);
+	AccessFlight::SetMotionAnnouncements(false);
 }
 
 

@@ -76,6 +76,12 @@ namespace {
 	// current pause was made by that.
 	bool arrivalPause = true;
 	bool pausedOnArrival = false;
+	bool motionAnnouncements = true;
+	// Motion monitor state.
+	string lastCompass;
+	bool wasTurning = false;
+	bool fullSpeedSaid = true;
+	bool movingSaid = false;
 	const Ship *lastFlagship = nullptr;
 	weak_ptr<Ship> lastTargetShip;
 	bool hadTargetShip = false;
@@ -682,6 +688,57 @@ namespace {
 		beaconTimer = interval;
 	}
 
+	// Speak the compass direction while the player turns, the exact heading
+	// when they let go, and when the ship reaches full speed or stops.
+	void MonitorMotion(Ship &flagship)
+	{
+		string compass = AccessFormat::CompassDirection(flagship.Facing().Unit());
+		Command keys;
+		keys.ReadKeyboard();
+		// Shift+Down is the autopilot stop, which turns the ship by itself.
+		// Shift may be let go a moment before Down, so remember the whole press.
+		static bool stopPress = false;
+		if(!keys.Has(Command::BACK))
+			stopPress = false;
+		else if(keys.Has(Command::SHIFT))
+			stopPress = true;
+		bool turning = keys.Has(Command::LEFT) || keys.Has(Command::RIGHT)
+			|| (keys.Has(Command::BACK) && !stopPress);
+		double speed = Speed(flagship);
+		double top = flagship.MaxVelocity() * 60.;
+		bool jumping = flagship.IsEnteringHyperspace() || flagship.IsHyperspacing();
+		if(motionAnnouncements && !jumping)
+		{
+			if(turning && compass != lastCompass && !lastCompass.empty())
+				AccessSpeech::Say(compass, SpeechPriority::FOCUS);
+			else if(!turning && wasTurning && !stopPress)
+				AccessSpeech::Say("Facing " + compass + ", "
+					+ to_string(static_cast<int>(lround(flagship.Facing().AbsDegrees()))) + " degrees.",
+					SpeechPriority::FOCUS);
+			if(top > 0. && speed >= top * .98 && !fullSpeedSaid)
+			{
+				AccessSpeech::Say("Full speed, " + AccessFormat::Integer(speed) + ".", SpeechPriority::INFO);
+				fullSpeedSaid = true;
+			}
+			if(speed >= 30.)
+				movingSaid = true;
+			else if(speed < 2. && movingSaid && flagship.Zoom() >= 1. && !flagship.Commands().Has(Command::LAND))
+			{
+				AccessSpeech::Say("Stopped.", SpeechPriority::INFO);
+				movingSaid = false;
+			}
+		}
+		if(top > 0. && speed < top * .9)
+			fullSpeedSaid = false;
+		if(jumping)
+		{
+			fullSpeedSaid = true;
+			movingSaid = false;
+		}
+		lastCompass = compass;
+		wasTurning = turning;
+	}
+
 	void Reset()
 	{
 		knownAttackers.clear();
@@ -694,6 +751,10 @@ namespace {
 		inRangeState = -1;
 		secondaryKnown = false;
 		lastAmmo.clear();
+		lastCompass.clear();
+		wasTurning = false;
+		fullSpeedSaid = true;
+		movingSaid = false;
 	}
 
 	string Fraction(double value)
@@ -778,6 +839,7 @@ void AccessFlight::Step(Engine &engine, const list<ShipEvent> &events, bool isAc
 	MonitorRange(*flagship);
 	HandleEvents(events, *flagship);
 	UpdateBeacon(*flagship);
+	MonitorMotion(*flagship);
 }
 
 
@@ -855,28 +917,45 @@ string AccessFlight::Status()
 	const Ship *flagship = player.Flagship();
 	if(!player.IsLoaded() || !flagship)
 		return "No flagship.";
+	// Most needed first; the ship's name is in Control+F, motion in Control+O.
 	vector<string> parts;
-	string name = flagship->GivenName() + ", " + flagship->DisplayModelName();
-	parts.push_back(name);
+	if(flagship->IsDisabled())
+		parts.push_back("disabled");
 	if(flagship->Attributes().Get("shields"))
 		parts.push_back("shields " + Fraction(flagship->ShieldFraction()));
 	parts.push_back("hull " + Fraction(flagship->HullFraction()));
-	parts.push_back("energy " + Fraction(flagship->EnergyFraction()));
-	parts.push_back("heat " + Fraction(flagship->HeatFraction()) + (flagship->IsOverheated() ? ", overheated" : ""));
 	double fuel = flagship->FuelFraction() * flagship->Attributes().Get("fuel capacity");
 	double jumpFuel = flagship->JumpNavigation().JumpFuel();
-	string fuelText = "fuel " + AccessFormat::Integer(fuel) + " of "
-		+ AccessFormat::Integer(flagship->Attributes().Get("fuel capacity"));
 	if(jumpFuel > 0.)
-		fuelText += ", " + AccessFormat::Plural(static_cast<int64_t>(fuel / jumpFuel), "jump") + " available";
-	parts.push_back(fuelText);
-	if(flagship->IsDisabled())
-		parts.push_back("disabled");
+		parts.push_back("fuel for " + AccessFormat::Plural(static_cast<int64_t>(fuel / jumpFuel), "jump"));
+	else
+		parts.push_back("fuel " + AccessFormat::Integer(fuel));
+	parts.push_back("energy " + Fraction(flagship->EnergyFraction()));
+	parts.push_back("heat " + Fraction(flagship->HeatFraction()) + (flagship->IsOverheated() ? ", overheated" : ""));
 	if(!player.GetPlanet())
-		parts.push_back(AccessFormat::Motion(flagship->Facing(), flagship->Velocity(), Speed(*flagship)));
-	parts.push_back("crew " + to_string(flagship->Crew()) + " of " + to_string(flagship->RequiredCrew())
-		+ " required");
-	return AccessFormat::List(parts) + ".";
+		parts.push_back(SpeedText(Speed(*flagship), flagship->MaxVelocity() * 60.));
+	if(flagship->Crew() < flagship->RequiredCrew())
+		parts.push_back("crew " + to_string(flagship->Crew()) + " of " + to_string(flagship->RequiredCrew())
+			+ " required");
+	string text = AccessFormat::List(parts) + ".";
+	return AccessFormat::Sentence(text);
+}
+
+
+
+string AccessFlight::SpeedText(double speed, double topSpeed)
+{
+	if(speed < 2.)
+		return "stopped";
+	string text = "speed " + AccessFormat::Integer(speed);
+	if(topSpeed > 0.)
+	{
+		if(speed >= topSpeed * .98)
+			text += ", full speed";
+		else
+			text += " of " + AccessFormat::Integer(topSpeed);
+	}
+	return text;
 }
 
 
@@ -888,21 +967,23 @@ string AccessFlight::Motion()
 		return "No flagship.";
 	if(Player().GetPlanet())
 		return "You are landed.";
-	string heading = "Heading " + to_string(static_cast<int>(lround(flagship->Facing().AbsDegrees())))
-		+ " degrees, facing " + AccessFormat::CompassDirection(flagship->Facing().Unit()) + ". ";
-	string motion = AccessFormat::Sentence(AccessFormat::Motion(flagship->Facing(), flagship->Velocity(),
-		Speed(*flagship)));
-	double max = flagship->MaxVelocity() * 60.;
-	string text = heading + motion;
-	if(max > 0. && Speed(*flagship) >= 1.)
-		text += ", " + AccessFormat::Percent(min(1., Speed(*flagship) / max)) + " of top speed";
-	text += ".";
-	if(Speed(*flagship) >= 1.)
-		text += " Travelling " + AccessFormat::CompassDirection(flagship->Velocity()) + ".";
+	// Speed first, then where the ship is going and where it points.
+	double speed = Speed(*flagship);
+	string text = AccessFormat::Sentence(SpeedText(speed, flagship->MaxVelocity() * 60.));
+	if(speed >= 2.)
+	{
+		string motion = AccessFormat::Motion(flagship->Facing(), flagship->Velocity(), speed);
+		text += ". " + AccessFormat::Sentence(motion.substr(0, motion.find(" at ")))
+			+ ", travelling " + AccessFormat::CompassDirection(flagship->Velocity());
+	}
+	text += ". Facing " + AccessFormat::CompassDirection(flagship->Facing().Unit()) + ", "
+		+ to_string(static_cast<int>(lround(flagship->Facing().AbsDegrees()))) + " degrees.";
 	if(flagship->IsThrusting())
 		text += " Thrusting.";
 	if(flagship->IsReversing())
 		text += " Reverse thrust.";
+	if(speed >= 2.)
+		text += " Shift+Down to stop.";
 	return text;
 }
 
@@ -980,6 +1061,20 @@ void AccessFlight::SetArrivalPause(bool on)
 bool AccessFlight::ArrivalPause()
 {
 	return arrivalPause;
+}
+
+
+
+void AccessFlight::SetMotionAnnouncements(bool on)
+{
+	motionAnnouncements = on;
+}
+
+
+
+bool AccessFlight::MotionAnnouncements()
+{
+	return motionAnnouncements;
 }
 
 

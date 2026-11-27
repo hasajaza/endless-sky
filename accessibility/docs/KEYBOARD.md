@@ -1,4 +1,4 @@
-# Endless Sky Accessible 1.0.21 - keyboard reference
+# Endless Sky Accessible 1.0.22 - keyboard reference
 
 This reference lists the game's own keys (unchanged) and the extra accessibility keys.
 All game keys are the defaults of Endless Sky 0.11.4. If you have changed a key in
@@ -33,6 +33,9 @@ configuration folder (see TROUBLESHOOTING.md).
 - Control+P: pause on arrival on or off. When on (the default), the game pauses each time
   you arrive in a new system; P continues.
 - Control+F9: ship chatter on or off (messages from other ships; they stay in the message log).
+- Control+Shift+O: motion announcements on or off. When on (the default), the compass
+  direction is spoken while you turn with Left, Right or Down, the exact heading when you
+  let go, "Full speed" when the ship reaches its top speed and "Stopped" when it stops.
 
 F2 is an unmodified key. If you bind F2 to a game command in Preferences, the game
 command wins and the accessibility help is disabled (you are told about this when the
@@ -42,8 +45,8 @@ game starts). Change the help key in "accessibility keys.txt" in that case.
 
 - Control+L: location: system, government, date, planet you are landed on, or the
   nearest object with its bearing and distance.
-- Control+S: flagship status: shields, hull, energy, heat, fuel and number of jumps,
-  movement, crew.
+- Control+S: flagship status, short: shields, hull, fuel (number of jumps), energy,
+  heat and speed. Crew only when it is too low. The ship's name is in Control+F.
 - Control+T: current target: name, type, government, attitude, bearing, distance,
   shields and hull, and every value the game's own target display shows (crew, energy,
   fuel, heat and weapon ranges only if you have the scanners the game requires),
@@ -59,7 +62,10 @@ game starts). Change the help key in "accessibility keys.txt" in that case.
 - Control+K: credits, cargo, passengers and free bunks.
 - Control+G: weapons, ammunition, selected secondary weapon, weapon ranges, energy,
   heat and turret mode.
-- Control+O: heading, speed, drift direction and travel direction.
+- Control+O: speed first ("speed 120 of 369", "full speed" or "stopped"), then the
+  direction of movement compared with where the nose points (forward, backward,
+  drifting left or right) and the compass direction of travel, then where the ship
+  faces: compass direction and heading in degrees (0 is north, 90 east).
 - Control+E: recent game messages. Press again for older ones.
 - Control+B: audio beacon on or off. The beacon pings from the direction of your
   target ship, landing target, asteroid or hyperspace destination. It is panned left

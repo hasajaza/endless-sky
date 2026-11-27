@@ -46,6 +46,11 @@ public:
 	// Pause the game whenever the player arrives in a new system.
 	static void SetArrivalPause(bool on);
 	static bool ArrivalPause();
+	// Spoken heading while turning, "full speed" and "stopped".
+	static void SetMotionAnnouncements(bool on);
+	static bool MotionAnnouncements();
+	// "Speed 120 of 300" style phrase, with "full speed" or "stopped".
+	static std::string SpeedText(double speed, double topSpeed);
 	// Called for each game message; returns true if it replaced the message
 	// with its own announcement.
 	static bool OnGameMessage(const std::string &text);

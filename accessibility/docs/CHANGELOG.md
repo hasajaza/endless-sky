@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.22 (2026-11-27)
+
+- Speed and heading, from player reports: Control+O now starts with the speed
+  ("speed 120 of 369", "full speed" or "stopped"), then the direction of movement and
+  travel, then the compass heading and degrees. Control+S is shorter and in order of
+  need: shields, hull, fuel, energy, heat and speed (the ship's name is in Control+F,
+  crew only when too low).
+- Motion announcements (Control+Shift+O to turn off): the compass direction while you
+  turn with Left, Right or Down, the exact heading when you let go, "Full speed" when
+  the ship reaches top speed and "Stopped" when it stops (for example after Shift+Down).
+- Getting started: new section on flying with escorts and giving fleet orders.
+
 ## 1.0.21 (2026-11-26)
 
 - Fleet formations: Shift+G (the game's own key) now always speaks, at every verbosity

@@ -90,7 +90,8 @@ These work at any time while flying:
 
   Control+D  destination: your route, the next jump and what to do next
   Control+L  location: the system you are in
-  Control+S  status: shields, hull, fuel
+  Control+S  status: shields, hull, fuel, speed
+  Control+O  speed and heading (where you move and where you face)
   Control+N  nearby planets and where they are
   Control+M  your missions
   Control+R  repeat the last announcement
@@ -101,6 +102,10 @@ at a time, and Shift+F2 to go back.
 
 Only press J when there is a route. Without one, the game jumps to whatever
 system your ship faces, and you hear a warning; press an arrow key to cancel.
+
+While you turn with Left or Right you hear the compass direction, and the
+exact heading when you let go. You also hear "Full speed" and "Stopped".
+Shift+Down stops the ship. Control+Shift+O turns these announcements off.
 
 7. Fuel
 -------
@@ -114,7 +119,26 @@ Control+F to hear friendly ships, select one with N, press T to hail it,
 then H to ask for help. It flies over and gives you fuel.
 
 
-8. Your first trip
+8. More than one ship
+---------------------
+
+When you buy a second ship, you only fly one: your flagship. The others are
+escorts: they follow you and fight by themselves, and they jump and land with
+you. You give them orders:
+
+  G  gather around me     H  hold position here     F  attack my target
+  Y  hold fire on or off  Z  pick up flotsam        Shift+G  next formation
+
+Orders go to all escorts, or only to the selected ones: Shift+N selects your
+escorts one by one, the number keys select a group. Control+F lists your
+ships with their condition and formation. J with escorts: hold J until they
+are ready, then let go so the whole fleet jumps together.
+
+To fly another ship as your flagship: land, press I (player info), select
+the ship with Up and Down, and move it to the top of the list with
+Control+Shift+Up. The first ship in the list is your flagship. Escorts need their own crew and fuel.
+
+9. Your first trip
 ------------------
 
 The game starts with a story: an old captain named James asks for a ride to
