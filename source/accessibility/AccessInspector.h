@@ -358,6 +358,16 @@ public:
 	// Ship info panel.
 	static const InfoPanelState &InfoState(const ShipInfoPanel &p) { return p.panelState; }
 	static const ShipInfoDisplay &Info(const ShipInfoPanel &p) { return p.info; }
+	// Choose what C or J jettisons, as a click on the cargo list would.
+	static void SelectDump(ShipInfoPanel &p, const std::string &commodity, const Outfit *plunder,
+		const Outfit *outfit)
+	{
+		p.selectedCommodity = commodity;
+		p.selectedPlunder = plunder;
+		p.selectedOutfit = outfit;
+	}
+	static bool CanDump(const ShipInfoPanel &p) { return p.CanDump(); }
+	static void ClearDrag(ShipInfoPanel &p) { p.draggingIndex = -1; }
 
 	// Logbook and message log.
 	static std::string LogbookSelection(const LogbookPanel &p) { return p.selection.first + " " + p.selection.second; }

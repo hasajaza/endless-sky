@@ -1,4 +1,4 @@
-# Endless Sky Accessible 1.0.23 - keyboard reference
+# Endless Sky Accessible 1.0.24 - keyboard reference
 
 This reference lists the game's own keys (unchanged) and the extra accessibility keys.
 All game keys are the defaults of Endless Sky 0.11.4. If you have changed a key in
@@ -127,8 +127,7 @@ not available there.
 - Plus / minus: zoom.
 - Escort groups (each change is spoken):
   - Shift+N: target your next escort. This also selects it alone, so fleet orders then
-    go only to that ship. Pressing Shift+N after your last escort clears the selection,
-    and orders go to the whole fleet again.
+    go only to that ship. Control+Shift+A clears the selection again.
   - Control+Shift+N (mod key): add the escort you targeted to the selection, or remove
     it if it is already there. Repeat Shift+N and Control+Shift+N to select several.
   - Control+digit: save the selected escorts as that group (with nothing selected, it
@@ -136,6 +135,8 @@ not available there.
   - Digit (0 to 9): select that group. Fleet orders then go to its ships.
   - Shift+digit: add a group to the selection, or remove it if all its ships are
     selected already.
+  - Control+Shift+A (mod key): select no escorts, so orders go to the whole fleet.
+  - To empty (disband) a group: Control+Shift+A, then Control and the group's digit.
   - Control+F says which groups each ship is in and which ships are selected.
 - Fleet orders: F fight my target, G gather around me, H hold position,
   Y toggle hold fire, U toggle escort ammunition use, Z harvest flotsam.
@@ -239,8 +240,18 @@ not available there.
 
 - Up / Down: select ships. Shift extends the selection. Control+Shift+Up/Down move ships
   in the fleet order. S or Enter: ship info.
-- Ship info: Left / Right (or P / N): previous / next ship. R rename, Shift+P or K park,
-  Shift+D disown, L logbook, M map, I back to player info.
+- Ship info: Left / Right (or P / N): previous / next ship. Each ship is announced with
+  its cargo. R rename, Shift+P or K park, Shift+D disown, L logbook, M map, I back to
+  player info. Control+Down reviews attributes, installed outfits and cargo.
+- Ship info, cargo (mod keys): Tab / Shift+Tab choose a cargo item, or an installed
+  outfit that can be jettisoned. C or J then jettisons it, asking how many (only in
+  space; with nothing chosen, C jettisons all the ship's cargo). While landed, the game
+  keeps all cargo in one fleet hold, so ships show their cargo only in space.
+- Ship info, weapons (mod keys, while landed): W / Shift+W go through the gun and turret
+  hardpoints ("Gun 1 of 2, front left: Energy Blaster"). Space picks up the weapon,
+  W to another hardpoint of the same kind, Space swaps them. Space on the same
+  hardpoint cancels. This is the keyboard version of dragging weapons with the mouse.
+  Note: in space, viewing an escort in ship info selects it for fleet orders.
 
 ### Message log and logbook
 

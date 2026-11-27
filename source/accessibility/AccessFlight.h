@@ -62,6 +62,8 @@ public:
 	static std::string Fleet();
 	// Add or remove the targeted escort in the selection (keyboard multi-select).
 	static std::string ToggleEscort();
+	// Select no escorts, so orders go to the whole fleet.
+	static std::string ClearEscorts();
 	// Speak the result of the game's group keys: digit, Shift+digit, Control+digit.
 	static void AnnounceGroup(int group, bool shift, bool control);
 	static std::string Cargo();

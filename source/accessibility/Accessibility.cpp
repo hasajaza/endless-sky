@@ -567,6 +567,9 @@ namespace {
 			case AccessAction::TOGGLE_ESCORT:
 				AccessSpeech::Say(AccessFlight::ToggleEscort(), SpeechPriority::REQUESTED);
 				break;
+			case AccessAction::CLEAR_ESCORTS:
+				AccessSpeech::Say(AccessFlight::ClearEscorts(), SpeechPriority::REQUESTED);
+				break;
 			case AccessAction::MISSIONS:
 				AccessSpeech::Say(MissionsReport(), SpeechPriority::REQUESTED);
 				break;

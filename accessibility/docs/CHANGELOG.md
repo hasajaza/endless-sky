@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.24 (2026-11-27)
+
+- Control+Shift+A: select no escorts, so orders go to the whole fleet. Followed by
+  Control and a digit, it empties (disbands) that group.
+- Ship info screen by keyboard: each ship is announced with its cargo. Tab and Shift+Tab
+  choose a cargo item or a jettisonable outfit, then the game's C or J jettisons just
+  that item (in space). W and Shift+W go through the weapon hardpoints; Space picks up a
+  weapon and Space on another hardpoint of the same kind swaps them (while landed), the
+  keyboard version of dragging with the mouse. While landed, the screen explains that
+  the cargo is kept for the whole fleet.
+
 ## 1.0.23 (2026-11-27)
 
 - Escort groups by keyboard: Control+Shift+N adds the escort targeted with Shift+N to the

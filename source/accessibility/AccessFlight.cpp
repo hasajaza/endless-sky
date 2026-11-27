@@ -1485,6 +1485,18 @@ string AccessFlight::ToggleEscort()
 
 
 
+string AccessFlight::ClearEscorts()
+{
+	PlayerInfo &player = Player();
+	if(!player.IsLoaded() || !player.Flagship() || player.GetPlanet())
+		return "Select escorts while flying.";
+	player.ClearSelectedEscorts();
+	markedEscorts.clear();
+	return "No escorts selected. Orders go to the whole fleet. Control plus a digit now empties that group.";
+}
+
+
+
 void AccessFlight::AnnounceGroup(int group, bool shift, bool control)
 {
 	PlayerInfo &player = Player();

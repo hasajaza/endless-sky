@@ -29,6 +29,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 #include "../CaptureOdds.h"
 #include "../CargoHold.h"
 #include "../Government.h"
+#include "../Hardpoint.h"
 #include "../InfoPanelState.h"
 #include "../Message.h"
 #include "../Messages.h"
@@ -146,16 +147,50 @@ namespace {
 		vector<string> Keys() override
 		{
 			return {"Left, Right, Up and Down arrows, or P and N, go to the previous or next ship",
+				"Tab and Shift Tab choose an item of cargo, or an outfit that can be jettisoned",
+				"C or J jettisons the chosen item (in space only); with nothing chosen, all the cargo",
+				"W and Shift W go through the weapon hardpoints",
+				"Space on a hardpoint picks up its weapon; Space on another hardpoint of the same kind swaps "
+					"them (while landed)",
 				"R renames the ship", "Shift P or K parks or unparks it", "Shift D disowns it",
-				"C or J dumps the selected cargo", "L logbook, M map", "I returns to player information",
-				"D or Escape close"};
+				"L logbook, M map", "I returns to player information", "D or Escape close"};
+		}
+
+		bool PreKey(int32_t key, uint16_t mod) override
+		{
+			if(mod & (KMOD_CTRL | KMOD_GUI | KMOD_ALT))
+				return false;
+			bool shift = mod & KMOD_SHIFT;
+			if(key == SDLK_TAB)
+			{
+				StepItem(shift ? -1 : 1);
+				return true;
+			}
+			if(key == 'w')
+			{
+				StepHardpoint(shift ? -1 : 1);
+				return true;
+			}
+			if(key == ' ' && hardpoint >= 0)
+			{
+				PickOrSwap();
+				return true;
+			}
+			return false;
 		}
 
 		void PostKey(int32_t key, uint16_t mod) override
 		{
 			if(key == SDLK_LEFT || key == SDLK_RIGHT || key == SDLK_UP || key == SDLK_DOWN || key == 'n'
 					|| (key == 'p' && !(mod & KMOD_SHIFT)))
+			{
+				// Another ship: start the item and hardpoint lists again.
+				item = -1;
+				hardpoint = -1;
+				picked = -1;
+				AccessInspector::SelectDump(shipInfo, string(), nullptr, nullptr);
 				Later(1, [this]() { Say(Current()); });
+			}
 			else if(key == 'k' || key == 'P' || (key == 'p' && (mod & KMOD_SHIFT)))
 				Later(1, [this]() { Say(Current()); });
 		}
@@ -214,13 +249,191 @@ namespace {
 			const Ship *ship = CurrentShip();
 			if(!ship)
 				return "No ship.";
-			return ShipSummary(*ship) + ". Cargo " + AccessFormat::Integer(ship->Cargo().Used()) + " of "
-				+ AccessFormat::Integer(ship->Cargo().Size()) + " tons. Outfit space free "
-				+ AccessFormat::Integer(ship->Attributes().Get("outfit space")) + ".";
+			string text = ShipSummary(*ship) + ". Cargo " + AccessFormat::Integer(ship->Cargo().Used()) + " of "
+				+ AccessFormat::Integer(ship->Cargo().Size()) + " tons";
+			vector<string> contents;
+			for(const Item &it : Items(*ship))
+				if(!it.installed)
+					contents.push_back(it.text);
+			if(ship->Cargo().Passengers())
+				contents.push_back(AccessFormat::Plural(ship->Cargo().Passengers(), "passenger"));
+			if(!contents.empty())
+				text += ": " + AccessFormat::List(contents);
+			text += ". Outfit space free " + AccessFormat::Integer(ship->Attributes().Get("outfit space")) + ".";
+			// While landed the game keeps all commodities in one fleet hold.
+			if(Player().GetPlanet() && Player().Cargo().Used() > 0)
+				text += " While landed, your cargo is kept for the whole fleet: "
+					+ AccessFormat::Plural(Player().Cargo().Used(), "ton") + "; it goes back into the ships "
+					"when you take off.";
+			return text;
+		}
+
+		// Something on the ship that can be jettisoned.
+		struct Item {
+			string text;
+			string commodity;
+			const Outfit *plunder = nullptr;
+			const Outfit *outfit = nullptr;
+			bool installed = false;
+		};
+
+		vector<Item> Items(const Ship &ship)
+		{
+			vector<Item> items;
+			for(const auto &it : ship.Cargo().Commodities())
+				if(it.second > 0)
+					items.push_back({AccessFormat::Plural(it.second, "ton") + " of " + it.first, it.first});
+			for(const auto &it : ship.Cargo().Outfits())
+				if(it.second > 0)
+				{
+					Item entry;
+					entry.text = to_string(it.second) + " " + (it.second == 1 ? it.first->DisplayName()
+						: it.first->PluralName()) + " in cargo";
+					entry.plunder = it.first;
+					items.push_back(entry);
+				}
+			for(const auto &it : ship.Outfits())
+				if(it.second > 0 && it.first->Get("can jettison"))
+				{
+					Item entry;
+					entry.text = to_string(it.second) + " " + (it.second == 1 ? it.first->DisplayName()
+						: it.first->PluralName()) + ", installed";
+					entry.outfit = it.first;
+					entry.installed = true;
+					items.push_back(entry);
+				}
+			return items;
+		}
+
+		Ship *EditableShip()
+		{
+			const InfoPanelState &state = AccessInspector::InfoState(shipInfo);
+			int index = state.SelectedIndex();
+			if(state.Ships().empty())
+				return nullptr;
+			if(index < 0 || index >= static_cast<int>(state.Ships().size()))
+				index = 0;
+			return state.Ships()[static_cast<size_t>(index)].get();
+		}
+
+		void StepItem(int direction)
+		{
+			const Ship *ship = CurrentShip();
+			if(!ship)
+				return;
+			vector<Item> items = Items(*ship);
+			if(items.empty())
+			{
+				Say("This ship carries nothing that can be jettisoned.", SpeechPriority::FOCUS);
+				return;
+			}
+			int count = static_cast<int>(items.size());
+			item = item < 0 ? (direction > 0 ? 0 : count - 1) : (item + direction + count) % count;
+			const Item &chosen = items[static_cast<size_t>(item)];
+			AccessInspector::SelectDump(shipInfo, chosen.commodity, chosen.plunder, chosen.outfit);
+			string text = chosen.text + ", " + to_string(item + 1) + " of " + to_string(count) + ".";
+			if(!chosen.commodity.empty() || chosen.plunder || chosen.outfit)
+			{
+				if(AccessInspector::InfoState(shipInfo).CanEdit())
+					text += " Jettison works only in space.";
+				else if(AccessInspector::CanDump(shipInfo))
+					text += " C to jettison.";
+			}
+			Say(text, SpeechPriority::FOCUS);
+		}
+
+		string HardpointText(const Ship &ship, int index)
+		{
+			const vector<Hardpoint> &points = ship.Weapons();
+			const Hardpoint &point = points[static_cast<size_t>(index)];
+			// Number guns and turrets separately, as the screen groups them.
+			int number = 0;
+			int total = 0;
+			for(int i = 0; i < static_cast<int>(points.size()); ++i)
+				if(points[static_cast<size_t>(i)].IsTurret() == point.IsTurret())
+				{
+					++total;
+					if(i <= index)
+						++number;
+				}
+			const Point &where = point.GetPoint();
+			string side = where.Y() < 0. ? "front" : "rear";
+			if(where.X() < -1.)
+				side += " left";
+			else if(where.X() > 1.)
+				side += " right";
+			else
+				side += " center";
+			const Outfit *weapon = point.GetOutfit();
+			return string(point.IsTurret() ? "Turret " : "Gun ") + to_string(number) + " of " + to_string(total)
+				+ ", " + side + ": " + (weapon ? weapon->DisplayName() : string("empty"));
+		}
+
+		void StepHardpoint(int direction)
+		{
+			const Ship *ship = CurrentShip();
+			if(!ship)
+				return;
+			int count = static_cast<int>(ship->Weapons().size());
+			if(!count)
+			{
+				Say("This ship has no weapon hardpoints.", SpeechPriority::FOCUS);
+				return;
+			}
+			hardpoint = hardpoint < 0 ? (direction > 0 ? 0 : count - 1) : (hardpoint + direction + count) % count;
+			string text = HardpointText(*ship, hardpoint) + ".";
+			if(picked >= 0)
+				text += picked == hardpoint ? " Picked up; Space puts it back." : " Space to swap here.";
+			Say(text, SpeechPriority::FOCUS);
+		}
+
+		void PickOrSwap()
+		{
+			Ship *ship = EditableShip();
+			if(!ship || hardpoint >= static_cast<int>(ship->Weapons().size()))
+				return;
+			const InfoPanelState &state = AccessInspector::InfoState(shipInfo);
+			if(!state.CanEdit() || ship->GetSystem() != Player().GetSystem() || ship->IsDisabled())
+			{
+				Say("Weapons can be moved only while landed, on a ship that is with you and not disabled.",
+					SpeechPriority::FOCUS);
+				return;
+			}
+			const vector<Hardpoint> &points = ship->Weapons();
+			if(picked < 0)
+			{
+				picked = hardpoint;
+				const Outfit *weapon = points[static_cast<size_t>(picked)].GetOutfit();
+				Say("Picked up " + (weapon ? weapon->DisplayName() : string("the empty slot")) + ". W to choose "
+					"another " + (points[static_cast<size_t>(picked)].IsTurret() ? "turret" : "gun")
+					+ ", Space to swap. Space here again to cancel.", SpeechPriority::FOCUS);
+				return;
+			}
+			if(picked == hardpoint)
+			{
+				picked = -1;
+				Say("Cancelled.", SpeechPriority::FOCUS);
+				return;
+			}
+			if(points[static_cast<size_t>(picked)].IsTurret() != points[static_cast<size_t>(hardpoint)].IsTurret())
+			{
+				Say("A gun and a turret cannot be swapped. Choose another "
+					+ string(points[static_cast<size_t>(picked)].IsTurret() ? "turret." : "gun."),
+					SpeechPriority::FOCUS);
+				return;
+			}
+			AccessInspector::ClearDrag(shipInfo);
+			ship->GetArmament().Swap(static_cast<unsigned>(picked), static_cast<unsigned>(hardpoint));
+			string text = "Swapped. " + HardpointText(*ship, hardpoint) + ". " + HardpointText(*ship, picked) + ".";
+			picked = -1;
+			Say(text, SpeechPriority::FOCUS);
 		}
 
 	private:
 		ShipInfoPanel &shipInfo;
+		int item = -1;
+		int hardpoint = -1;
+		int picked = -1;
 	};
 
 
