@@ -1,10 +1,10 @@
-Endless Sky Accessible 1.0.24, for Endless Sky 0.11.4 on Windows 10 and 11.
+Endless Sky Accessible 1.0.25, for Endless Sky 0.11.4 on Windows 10 and 11.
 
 Unofficial screen reader accessibility mod. Not made or endorsed by the Endless Sky developers. Developed with AI assistance (Claude, by Anthropic).
 
 Requirements: Endless Sky 0.11.4 (free), from Steam or the official GitHub download (EndlessSky-win64-v0.11.4.zip), and a screen reader (NVDA or JAWS) or Windows speech.
 
-Install: download EndlessSky_Access_1.0.24.zip below, extract it, run Install.bat, then start "Endless Sky Accessible" from the desktop shortcut. Start with docs/GETTING_STARTED.txt.
+Install: download EndlessSky_Access_1.0.25.zip below, extract it, run Install.bat, then start "Endless Sky Accessible" from the desktop shortcut. Start with docs/GETTING_STARTED.txt.
 
 Highlights:
 - Every screen spoken, with F2 describing the screen and reading its keys one at a time.
@@ -13,6 +13,7 @@ Highlights:
 - Shipyard and outfitter: Space reads values one at a time with comparison, A reads all.
 - Warnings for jumps without a route and for low fuel; ship chatter can be muted (Control+F9).
 - Fleet formations: Shift+G speaks each formation and its shape; Control+F gives each escort's formation.
+- Combat aim cues (Control+Shift+B): a tick on the side to turn toward, a chirp when your guns are lined up on the enemy target. Parking keys in player info are spoken.
 - Ship info by keyboard: Tab chooses cargo to jettison with C; W and Space move weapons between hardpoints. Control+Shift+A clears the escort selection (then Control+digit empties a group).
 - Escort groups by keyboard: Shift+N targets an escort, Control+Shift+N adds it to the selection, Control+digit saves the group, the digit selects it; all spoken.
 - Speed and heading: Control+O starts with the speed; the heading is spoken while you turn, plus "Full speed" and "Stopped" (Control+Shift+O turns these off). Shift+Down stops the ship.
