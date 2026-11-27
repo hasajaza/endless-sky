@@ -60,6 +60,10 @@ public:
 	static std::string Nearby();
 	static std::string Hostiles();
 	static std::string Fleet();
+	// Add or remove the targeted escort in the selection (keyboard multi-select).
+	static std::string ToggleEscort();
+	// Speak the result of the game's group keys: digit, Shift+digit, Control+digit.
+	static void AnnounceGroup(int group, bool shift, bool control);
 	static std::string Cargo();
 	static std::string Weapons();
 	static std::string Motion();

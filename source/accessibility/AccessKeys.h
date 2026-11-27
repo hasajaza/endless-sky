@@ -42,6 +42,7 @@ enum class AccessAction : int {
 	TOGGLE_CHATTER,
 	TOGGLE_ARRIVAL_PAUSE,
 	TOGGLE_MOTION,
+	TOGGLE_ESCORT,
 	// Information commands.
 	LOCATION,
 	STATUS,

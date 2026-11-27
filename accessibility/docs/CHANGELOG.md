@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.23 (2026-11-27)
+
+- Escort groups by keyboard: Control+Shift+N adds the escort targeted with Shift+N to the
+  selection (or removes it), so several escorts can be selected without a mouse. The
+  game's group keys now speak: a digit says which ships the group selected (or that it
+  is empty and how to make it), Control+digit says which ships were saved, Shift+digit
+  says the new selection. Control+F says each ship's groups and which ships are selected
+  for orders.
+- Getting started: how to make and use escort groups.
+
 ## 1.0.22 (2026-11-27)
 
 - Speed and heading, from player reports: Control+O now starts with the speed

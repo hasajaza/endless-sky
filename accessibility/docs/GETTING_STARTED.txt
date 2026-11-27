@@ -129,8 +129,17 @@ you. You give them orders:
   G  gather around me     H  hold position here     F  attack my target
   Y  hold fire on or off  Z  pick up flotsam        Shift+G  next formation
 
-Orders go to all escorts, or only to the selected ones: Shift+N selects your
-escorts one by one, the number keys select a group. Control+F lists your
+Orders go to all escorts, or only to the selected ones. Escort groups, for
+example group 1 fighters and group 2 heavy ships:
+
+  1. Shift+N targets your next escort (and selects it alone).
+  2. Control+Shift+N adds it to the selection. Repeat Shift+N and
+     Control+Shift+N for each ship you want.
+  3. Control+1 saves the selection as group 1.
+
+Later, press 1 to select group 1, then give an order (G, H, F...). Shift+2
+adds group 2 to the selection. Shift+N after your last escort clears the
+selection, so orders go to the whole fleet again. Control+F lists your
 ships with their condition and formation. J with escorts: hold J until they
 are ready, then let go so the whole fleet jumps together.
 

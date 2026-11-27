@@ -140,6 +140,18 @@ namespace {
 			AccessFlight::BuildReview(groups);
 		}
 
+		void PostKey(int32_t key, uint16_t mod) override
+		{
+			// The game's escort group keys say nothing; the selection changes
+			// in the next engine step, so speak a few frames later.
+			if(key < '0' || key > '9' || (mod & KMOD_ALT))
+				return;
+			int group = key - '0';
+			bool shift = mod & KMOD_SHIFT;
+			bool control = mod & (KMOD_CTRL | KMOD_GUI);
+			Later(3, [group, shift, control]() { AccessFlight::AnnounceGroup(group, shift, control); });
+		}
+
 		bool KeepReview() const override
 		{
 			return true;

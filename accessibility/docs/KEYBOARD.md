@@ -1,4 +1,4 @@
-# Endless Sky Accessible 1.0.22 - keyboard reference
+# Endless Sky Accessible 1.0.23 - keyboard reference
 
 This reference lists the game's own keys (unchanged) and the extra accessibility keys.
 All game keys are the defaults of Endless Sky 0.11.4. If you have changed a key in
@@ -125,8 +125,18 @@ not available there.
 - D: deploy or recall fighters. C: cloak.
 - P: pause. Caps Lock: fast forward. F11: full screen. F3: performance display.
 - Plus / minus: zoom.
-- 0 to 9: select escort group. Control+digit: store the selected escorts as a group.
-  Shift+digit: add a group to the selection.
+- Escort groups (each change is spoken):
+  - Shift+N: target your next escort. This also selects it alone, so fleet orders then
+    go only to that ship. Pressing Shift+N after your last escort clears the selection,
+    and orders go to the whole fleet again.
+  - Control+Shift+N (mod key): add the escort you targeted to the selection, or remove
+    it if it is already there. Repeat Shift+N and Control+Shift+N to select several.
+  - Control+digit: save the selected escorts as that group (with nothing selected, it
+    empties the group).
+  - Digit (0 to 9): select that group. Fleet orders then go to its ships.
+  - Shift+digit: add a group to the selection, or remove it if all its ships are
+    selected already.
+  - Control+F says which groups each ship is in and which ships are selected.
 - Fleet orders: F fight my target, G gather around me, H hold position,
   Y toggle hold fire, U toggle escort ammunition use, Z harvest flotsam.
 - Shift+G: formation. Each press puts your selected escorts (or all escorts if none are

@@ -82,6 +82,10 @@ namespace {
 	bool wasTurning = false;
 	bool fullSpeedSaid = true;
 	bool movingSaid = false;
+	// Escorts chosen with Control+Shift+N; the game's Shift+N replaces the
+	// selection with one ship, so the mod keeps the list it is building.
+	vector<weak_ptr<Ship>> markedEscorts;
+
 	const Ship *lastFlagship = nullptr;
 	weak_ptr<Ship> lastTargetShip;
 	bool hadTargetShip = false;
@@ -686,6 +690,33 @@ namespace {
 		if(fabs(degrees) < 6.)
 			interval = min(interval, 20);
 		beaconTimer = interval;
+	}
+
+	vector<shared_ptr<Ship>> Selected()
+	{
+		vector<shared_ptr<Ship>> result;
+		for(const weak_ptr<Ship> &weak : Player().SelectedEscorts())
+			if(shared_ptr<Ship> ship = weak.lock())
+				if(!ship->IsDestroyed())
+					result.push_back(ship);
+		return result;
+	}
+
+	string ShipNames(const vector<shared_ptr<Ship>> &ships)
+	{
+		vector<string> names;
+		for(const shared_ptr<Ship> &ship : ships)
+			names.push_back(ship->GivenName());
+		return AccessFormat::List(names);
+	}
+
+	string GroupNames(const set<Ship *> &group)
+	{
+		vector<shared_ptr<Ship>> ships;
+		for(const shared_ptr<Ship> &ship : Player().Ships())
+			if(group.contains(ship.get()) && !ship->IsDestroyed())
+				ships.push_back(ship);
+		return ShipNames(ships);
 	}
 
 	// Speak the compass direction while the player turns, the exact heading
@@ -1363,6 +1394,12 @@ string AccessFlight::Fleet()
 			line += ", flagship";
 		else if(ship->GetFormationPattern())
 			line += ", " + ship->GetFormationPattern()->TrueName() + " formation";
+		vector<string> inGroups;
+		for(int group = 0; group < 10; ++group)
+			if(player.GetEscortGroup(group).contains(ship.get()))
+				inGroups.push_back(to_string(group));
+		if(!inGroups.empty())
+			line += string(inGroups.size() == 1 ? ", group " : ", groups ") + AccessFormat::List(inGroups);
 		line += ", shields " + Fraction(ship->ShieldFraction()) + ", hull " + Fraction(ship->HullFraction());
 		if(ship->IsDisabled())
 			line += ", disabled";
@@ -1387,6 +1424,9 @@ string AccessFlight::Fleet()
 	}
 	if(parked)
 		text += " " + AccessFormat::Plural(parked, "parked ship") + ".";
+	vector<shared_ptr<Ship>> selected = Selected();
+	if(!selected.empty())
+		text += " Selected for orders: " + ShipNames(selected) + ".";
 	// Escort orders currently configured.
 	vector<string> settings;
 	if(Preferences::Has("Escorts expend ammo"))
@@ -1396,6 +1436,83 @@ string AccessFlight::Fleet()
 		settings.push_back("escorts do not use ammo");
 	text += " " + AccessFormat::Sentence(AccessFormat::List(settings)) + ".";
 	return text;
+}
+
+
+
+string AccessFlight::ToggleEscort()
+{
+	PlayerInfo &player = Player();
+	Ship *flagship = player.Flagship();
+	if(!player.IsLoaded() || !flagship || player.GetPlanet())
+		return "Select escorts while flying.";
+	shared_ptr<Ship> target = flagship->GetTargetShip();
+	if(!target || !target->IsYours() || target.get() == flagship)
+		return "First target one of your escorts with Shift+N.";
+	// The list being built plus whatever the game has selected now.
+	vector<shared_ptr<Ship>> list;
+	auto add = [&list](const shared_ptr<Ship> &ship)
+	{
+		if(ship && !ship->IsDestroyed() && find(list.begin(), list.end(), ship) == list.end())
+			list.push_back(ship);
+	};
+	bool wasMarked = false;
+	for(const weak_ptr<Ship> &weak : markedEscorts)
+		if(shared_ptr<Ship> ship = weak.lock())
+		{
+			wasMarked |= ship == target;
+			add(ship);
+		}
+	for(const shared_ptr<Ship> &ship : Selected())
+		add(ship);
+	if(wasMarked)
+		list.erase(remove(list.begin(), list.end(), target), list.end());
+	else
+		add(target);
+	player.ClearSelectedEscorts();
+	markedEscorts.clear();
+	for(const shared_ptr<Ship> &ship : list)
+	{
+		player.SelectEscort(ship.get(), true);
+		markedEscorts.push_back(ship);
+	}
+	string text = (wasMarked ? "Removed " : "Added ") + target->GivenName() + ". ";
+	if(list.empty())
+		return text + "No escorts selected; orders go to the whole fleet.";
+	return text + "Selected " + AccessFormat::Plural(static_cast<int64_t>(list.size()), "escort") + ": "
+		+ ShipNames(list) + ". Control plus a digit saves them as a group.";
+}
+
+
+
+void AccessFlight::AnnounceGroup(int group, bool shift, bool control)
+{
+	PlayerInfo &player = Player();
+	if(!player.IsLoaded() || !player.Flagship())
+		return;
+	string number = to_string(group);
+	vector<shared_ptr<Ship>> selected = Selected();
+	// The selection now replaces the list built with Control+Shift+N.
+	markedEscorts.assign(selected.begin(), selected.end());
+	string text;
+	if(control)
+	{
+		set<Ship *> members = player.GetEscortGroup(group);
+		if(members.empty())
+			text = "Group " + number + " cleared, because no escorts were selected. To fill it, target an "
+				"escort with Shift+N, add more with Control+Shift+N, then press Control+" + number + ".";
+		else
+			text = "Group " + number + " saved: " + GroupNames(members) + ". Press " + number
+				+ " to select this group.";
+	}
+	else if(selected.empty())
+		text = shift ? "No escorts selected; orders go to the whole fleet."
+			: "Group " + number + " is empty. To make it, target an escort with Shift+N, add more with "
+				"Control+Shift+N, then press Control+" + number + ".";
+	else
+		text = (shift ? string("Selected: ") : "Group " + number + " selected: ") + ShipNames(selected)
+			+ ". Fleet orders now go to these ships.";
+	AccessSpeech::Say(text, SpeechPriority::REQUESTED);
 }
 
 

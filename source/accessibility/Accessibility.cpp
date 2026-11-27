@@ -318,7 +318,9 @@ namespace {
 		}
 		game.items.emplace_back("Stop your ship: Shift plus " + AccessFormat::FriendlyKey(Command::BACK.KeyName()));
 		game.items.emplace_back("Fleet jump: Shift plus " + AccessFormat::FriendlyKey(Command::JUMP.KeyName()));
-		game.items.emplace_back("Select escort group: 0 to 9; Control plus a digit stores the selected escorts");
+		game.items.emplace_back("Escort groups: Shift plus N targets an escort, Control plus Shift plus N adds it to the "
+			"selection, Control plus a digit saves the selection as a group, the digit selects the group, "
+			"Shift plus a digit adds a group to the selection");
 		game.items.emplace_back("Zoom: plus and minus");
 		groups.push_back(std::move(game));
 		return groups;
@@ -561,6 +563,9 @@ namespace {
 				break;
 			case AccessAction::FLEET:
 				AccessSpeech::Say(AccessFlight::Fleet(), SpeechPriority::REQUESTED);
+				break;
+			case AccessAction::TOGGLE_ESCORT:
+				AccessSpeech::Say(AccessFlight::ToggleEscort(), SpeechPriority::REQUESTED);
 				break;
 			case AccessAction::MISSIONS:
 				AccessSpeech::Say(MissionsReport(), SpeechPriority::REQUESTED);
