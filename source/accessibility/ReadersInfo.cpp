@@ -88,14 +88,34 @@ namespace {
 		{
 			return {"Up and Down arrows select a ship; Shift extends the selection",
 				"Control Shift Up and Down move the selected ships in the fleet order",
+				"While landed: K or Shift P parks or unparks the selected ships, A parks or unparks all ships, "
+					"C parks or unparks the ships in this system",
+				"V saves a sorted order as the fleet order",
 				"S or Enter open the ship information screen", "Page Up, Page Down, Home and End scroll",
 				"I, D or Escape close", "Control plus Down arrow reviews all the information on the screen"};
 		}
 
 		void PostKey(int32_t key, uint16_t mod) override
 		{
+			if(mod & (KMOD_CTRL | KMOD_GUI | KMOD_ALT))
+			{
+				if(key == SDLK_UP || key == SDLK_DOWN)
+					Say(Selected());
+				return;
+			}
+			bool shift = mod & KMOD_SHIFT;
+			const InfoPanelState &state = AccessInspector::InfoState(info);
 			if(key == SDLK_UP || key == SDLK_DOWN)
 				Say(Selected());
+			else if(key == 'k' || key == 'a' || key == 'c' || (key == 'p' && shift))
+			{
+				if(!state.CanEdit())
+					Say("Ships can be parked only while landed.");
+				else
+					Later(1, [this, key]() { Say(ParkResult(key)); });
+			}
+			else if(key == 'v' && state.CanEdit())
+				Say("Fleet order saved.");
 		}
 
 		void BuildReview(vector<ReviewGroup> &groups) override
@@ -108,6 +128,35 @@ namespace {
 		}
 
 	private:
+		string ParkResult(int32_t key)
+		{
+			const InfoPanelState &state = AccessInspector::InfoState(info);
+			const vector<shared_ptr<Ship>> &ships = state.Ships();
+			if(key == 'k' || key == 'p')
+			{
+				vector<string> parked;
+				vector<string> active;
+				for(int index : state.AllSelected())
+				{
+					if(index < 0 || index >= static_cast<int>(ships.size()))
+						continue;
+					const Ship &ship = *ships[static_cast<size_t>(index)];
+					(ship.IsParked() ? parked : active).push_back(ship.GivenName());
+				}
+				string text;
+				if(!parked.empty())
+					text += "Parked: " + AccessFormat::List(parked) + ". ";
+				if(!active.empty())
+					text += "Active: " + AccessFormat::List(active) + ".";
+				return text.empty() ? string("No ship selected.") : text;
+			}
+			int parked = 0;
+			for(const shared_ptr<Ship> &ship : ships)
+				parked += ship->IsParked();
+			return to_string(parked) + " of " + to_string(ships.size()) + " ships parked. Parked ships stay "
+				"here and do not follow you.";
+		}
+
 		string Selected()
 		{
 			const InfoPanelState &state = AccessInspector::InfoState(info);

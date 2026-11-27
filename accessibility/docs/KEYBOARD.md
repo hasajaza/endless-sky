@@ -1,4 +1,4 @@
-# Endless Sky Accessible 1.0.24 - keyboard reference
+# Endless Sky Accessible 1.0.25 - keyboard reference
 
 This reference lists the game's own keys (unchanged) and the extra accessibility keys.
 All game keys are the defaults of Endless Sky 0.11.4. If you have changed a key in
@@ -71,6 +71,11 @@ game starts). Change the help key in "accessibility keys.txt" in that case.
   target ship, landing target, asteroid or hyperspace destination. It is panned left
   or right relative to your ship's nose, and its pitch is high when the object is
   ahead and low when it is behind. It pings faster when you are close or lined up.
+- Control+Shift+B: aim cues on or off (on by default; they need audio cues on). With an
+  enemy ship targeted within about one and a half times your gun range, a short tick
+  sounds from the side you must turn toward, faster as you line up, and a bright
+  two-note chirp sounds while your forward guns are lined up, leading a moving target.
+  Fire on the chirp. While aim cues are playing, the beacon is quiet for that target.
 
 ### Review cursor
 
@@ -240,6 +245,9 @@ not available there.
 
 - Up / Down: select ships. Shift extends the selection. Control+Shift+Up/Down move ships
   in the fleet order. S or Enter: ship info.
+- While landed: K (or Shift+P) parks or unparks the selected ships and says which are
+  parked; A parks or unparks all ships; C the ships in this system (both say how many
+  are parked). V saves a sorted order. Parked ships stay behind and do not follow you.
 - Ship info: Left / Right (or P / N): previous / next ship. Each ship is announced with
   its cargo. R rename, Shift+P or K park, Shift+D disown, L logbook, M map, I back to
   player info. Control+Down reviews attributes, installed outfits and cargo.

@@ -33,7 +33,11 @@ public:
 		// The target came into weapon range.
 		IN_RANGE,
 		// Something could not be done (end of a list, no target...).
-		BOUNDARY
+		BOUNDARY,
+		// Aim tick: the side to turn toward to line up the guns on the target.
+		AIM,
+		// The guns are lined up on the target: fire.
+		ON_TARGET
 	};
 
 public:

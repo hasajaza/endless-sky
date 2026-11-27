@@ -58,6 +58,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 
 #include <algorithm>
 #include <cmath>
+#include <numbers>
 #include <map>
 #include <set>
 
@@ -115,6 +116,10 @@ namespace {
 
 	// Beacon.
 	bool beaconOn = false;
+	bool aimCues = true;
+	int aimTimer = 0;
+	bool aimActive = false;
+	bool aimHelpSaid = false;
 	// Whether "beacon silent, no target" was already said for this gap.
 	bool beaconSilentSaid = false;
 	int beaconTimer = 0;
@@ -526,6 +531,81 @@ namespace {
 		}
 	}
 
+	// Speed of the flagship's forward guns, used to lead a moving target.
+	double GunVelocity(const Ship &flagship)
+	{
+		double best = 0.;
+		for(const Hardpoint &point : flagship.Weapons())
+		{
+			const Outfit *outfit = point.GetOutfit();
+			if(point.IsTurret() || !outfit || !outfit->GetWeapon())
+				continue;
+			const Weapon &weapon = *outfit->GetWeapon();
+			if(!weapon.Homing() && weapon.WeightedVelocity() > best)
+				best = weapon.WeightedVelocity();
+		}
+		return best;
+	}
+
+	// Combat aim cues: with an enemy ship targeted near weapons range, a tick
+	// panned to the side to turn toward, faster as the aim improves, and a
+	// bright chirp while the guns (leading the target) are lined up.
+	void UpdateAim(Ship &flagship)
+	{
+		aimActive = false;
+		if(!aimCues || !AccessContext::AudioCues())
+			return;
+		shared_ptr<Ship> target = flagship.GetTargetShip();
+		if(!target || target->GetSystem() != flagship.GetSystem() || !target->IsTargetable()
+				|| !target->GetGovernment()->IsEnemy() || flagship.IsHyperspacing())
+			return;
+		double speed = GunVelocity(flagship);
+		double range = flagship.GetAICache().GunRange();
+		if(speed <= 0. || range <= 0.)
+			return;
+		Point delta = target->Position() - flagship.Position();
+		double distance = delta.Length();
+		if(distance > range * 1.5)
+			return;
+		// Lead the target: where it will be when a shot gets there.
+		Point relativeVelocity = target->Velocity() - flagship.Velocity();
+		Point aim = delta;
+		for(int i = 0; i < 3; ++i)
+			aim = delta + relativeVelocity * (aim.Length() / speed);
+		double degrees = AccessFormat::RelativeDegrees(flagship.Facing(), aim);
+		double tolerance = max(2., atan2(max(10., target->Radius() * .7), max(1., aim.Length())) * 180. / numbers::pi);
+		if(fabs(degrees) > 60.)
+			return;
+		aimActive = true;
+		if(!aimHelpSaid)
+		{
+			AccessSpeech::Say("Aim cues: the tick is on the side to turn toward and speeds up as you line up; "
+				"the bright chirp means fire. Control+Shift+B turns them off.", SpeechPriority::INFO);
+			aimHelpSaid = true;
+		}
+		// Coming onto the target chirps at once, so a fast turn does not skip it.
+		static bool wasOnTarget = false;
+		bool onTarget = fabs(degrees) <= tolerance;
+		if(onTarget && !wasOnTarget)
+			aimTimer = 0;
+		wasOnTarget = onTarget;
+		if(aimTimer > 0)
+		{
+			--aimTimer;
+			return;
+		}
+		if(onTarget)
+		{
+			AccessAudio::Play(AccessAudio::Cue::ON_TARGET, 0., 1.);
+			aimTimer = 9;
+		}
+		else
+		{
+			AccessAudio::Play(AccessAudio::Cue::AIM, degrees, 1.);
+			aimTimer = 8 + static_cast<int>(28. * min(1., fabs(degrees) / 60.));
+		}
+	}
+
 	void MonitorRange(Ship &flagship)
 	{
 		shared_ptr<Ship> target = flagship.GetTargetShip();
@@ -647,6 +727,9 @@ namespace {
 		Point position;
 		bool found = false;
 		shared_ptr<Ship> target = flagship.GetTargetShip();
+		// The aim cues already point at an enemy target close by.
+		if(aimActive)
+			return;
 		if(target && target->GetSystem() == flagship.GetSystem() && target->IsTargetable())
 		{
 			position = target->Position();
@@ -869,6 +952,7 @@ void AccessFlight::Step(Engine &engine, const list<ShipEvent> &events, bool isAc
 	MonitorThreats(engine, *flagship);
 	MonitorRange(*flagship);
 	HandleEvents(events, *flagship);
+	UpdateAim(*flagship);
 	UpdateBeacon(*flagship);
 	MonitorMotion(*flagship);
 }
@@ -1092,6 +1176,20 @@ void AccessFlight::SetArrivalPause(bool on)
 bool AccessFlight::ArrivalPause()
 {
 	return arrivalPause;
+}
+
+
+
+void AccessFlight::SetAimCues(bool on)
+{
+	aimCues = on;
+}
+
+
+
+bool AccessFlight::AimCues()
+{
+	return aimCues;
 }
 
 

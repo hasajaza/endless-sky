@@ -90,6 +90,8 @@ void AccessAudio::Init()
 	buffers[Cue::HULL_HIT] = MakeBuffer(Tone({{150., .09}}, .45, true));
 	buffers[Cue::IN_RANGE] = MakeBuffer(Tone({{660., .05}, {990., .07}}, .4));
 	buffers[Cue::BOUNDARY] = MakeBuffer(Tone({{220., .06}}, .35));
+	buffers[Cue::AIM] = MakeBuffer(Tone({{1200., .025}}, .3));
+	buffers[Cue::ON_TARGET] = MakeBuffer(Tone({{1600., .03}, {2100., .04}}, .45));
 
 	sources.resize(SOURCE_COUNT);
 	alGenSources(SOURCE_COUNT, sources.data());

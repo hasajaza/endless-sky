@@ -48,6 +48,9 @@ public:
 	static bool ArrivalPause();
 	// Spoken heading while turning, "full speed" and "stopped".
 	static void SetMotionAnnouncements(bool on);
+	// Combat aim tones toward an enemy target.
+	static void SetAimCues(bool on);
+	static bool AimCues();
 	static bool MotionAnnouncements();
 	// "Speed 120 of 300" style phrase, with "full speed" or "stopped".
 	static std::string SpeedText(double speed, double topSpeed);

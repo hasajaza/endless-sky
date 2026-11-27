@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.25 (2026-11-27)
+
+- Aim cues for combat (Control+Shift+B, on by default): with an enemy ship targeted near
+  weapons range, a tick panned to the side to turn toward, faster as you line up, and a
+  bright chirp while the forward guns are lined up, leading a moving target.
+- Player info: K, Shift+P, A and C (parking) and V (save order) are listed in F2 and their
+  results are spoken.
+- Getting started: new "Fighting" section.
+
 ## 1.0.24 (2026-11-27)
 
 - Control+Shift+A: select no escorts, so orders go to the whole fleet. Followed by

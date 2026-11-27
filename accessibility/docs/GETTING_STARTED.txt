@@ -148,7 +148,19 @@ To fly another ship as your flagship: land, press I (player info), select
 the ship with Up and Down, and move it to the top of the list with
 Control+Shift+Up. The first ship in the list is your flagship. Escorts need their own crew and fuel.
 
-9. Your first trip
+9. Fighting
+-----------
+
+Press Control+H to hear hostile ships, R to target the nearest hostile, and
+Control+T for your target. A chime tells you when it comes into weapon range.
+Then listen to the aim cues: a short tick on the side you must turn toward,
+faster as you line up, and a bright chirp when your guns are lined up. Turn
+with Left and Right, and fire (Tab, or the key you set) on the chirp. Holding
+the auto steer key (E) turns toward the target for you. "Incoming missile" and
+the damage sounds tell you when you are being hit. Control+Shift+B turns the
+aim cues off.
+
+10. Your first trip
 ------------------
 
 The game starts with a story: an old captain named James asks for a ride to

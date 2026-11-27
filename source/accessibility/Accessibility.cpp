@@ -127,6 +127,8 @@ namespace {
 				shipChatter = node.Value(1) != 0.;
 			else if(key == "arrival pause")
 				AccessFlight::SetArrivalPause(node.Value(1) != 0.);
+			else if(key == "aim cues")
+				AccessFlight::SetAimCues(node.Value(1) != 0.);
 			else if(key == "motion announcements")
 				AccessFlight::SetMotionAnnouncements(node.Value(1) != 0.);
 			else if(key == "cue volume")
@@ -632,6 +634,7 @@ namespace {
 			case AccessAction::TOGGLE_CHATTER:
 			case AccessAction::TOGGLE_ARRIVAL_PAUSE:
 			case AccessAction::TOGGLE_MOTION:
+			case AccessAction::TOGGLE_AIM:
 				return false;
 			default:
 				return true;
@@ -697,7 +700,8 @@ namespace {
 						"heard.", SpeechPriority::REQUESTED);
 				else
 					AccessSpeech::Say(audioCues ? "Audio cues on: sounds for shield and hull hits, a chime when your "
-						"target comes into weapon range, and the beacon (Control+B)." : "Audio cues off.",
+						"target comes into weapon range, aim tones toward an enemy target (Control+Shift+B), and the "
+						"beacon (Control+B)." : "Audio cues off.",
 						SpeechPriority::REQUESTED);
 				AccessContext::SaveSettings();
 				return;
@@ -712,6 +716,14 @@ namespace {
 				AccessSpeech::Say(AccessFlight::ArrivalPause()
 					? "Pause on arrival on: the game pauses in each new system. Press P to continue."
 					: "Pause on arrival off.", SpeechPriority::REQUESTED);
+				AccessContext::SaveSettings();
+				return;
+			case AccessAction::TOGGLE_AIM:
+				AccessFlight::SetAimCues(!AccessFlight::AimCues());
+				AccessSpeech::Say(AccessFlight::AimCues()
+					? "Aim cues on. With an enemy targeted near weapons range, a tick on the side to turn toward, "
+						"faster as you line up, and a bright chirp when your guns are lined up."
+					: "Aim cues off.", SpeechPriority::REQUESTED);
 				AccessContext::SaveSettings();
 				return;
 			case AccessAction::TOGGLE_MOTION:
@@ -897,6 +909,7 @@ void AccessContext::SaveSettings()
 	out.Write("ship chatter", shipChatter ? 1 : 0);
 	out.Write("arrival pause", AccessFlight::ArrivalPause() ? 1 : 0);
 	out.Write("motion announcements", AccessFlight::MotionAnnouncements() ? 1 : 0);
+	out.Write("aim cues", AccessFlight::AimCues() ? 1 : 0);
 	out.Write("sapi fallback", AccessSpeech::UseSapiFallback() ? 1 : 0);
 	out.WriteComment("Speech engine: -1 = automatic; otherwise the Universal Speech engine number.");
 	out.Write("speech engine", AccessSpeech::ForcedEngine());

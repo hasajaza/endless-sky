@@ -118,13 +118,15 @@ Bearings are relative to your ship's nose: "dead ahead", "15 degrees right",
 finder (as on the game's display) and rounded otherwise.
 
 Audio cues (synthesised, played through the game's own audio): beacon, shield hit,
-hull hit, target in range, end of a list.
+hull hit, target in range, end of a list, and aim cues (a tick toward the side to turn,
+a chirp when the guns are lined up on an enemy target, leading it).
 
 ## Combat, fleet, mining, boarding
 
 - Combat information through Control+T, Control+H, Control+G and automatic alerts.
   The game's "Automatic firing" preference and auto steer (E) are the original aiming
-  aids; the mod does not aim or fire for you.
+  aids. The mod's aim cues (Control+Shift+B) tell you by sound which way to turn and
+  when to fire; the mod does not aim or fire for you.
 - Fleet: Control+F lists your ships; the game's fleet keys issue orders and the game's
   messages confirm them; escorts can be selected from the "Your fleet" review list.
 - Formations: Shift+G cycles the escort formations; each change is spoken with the
