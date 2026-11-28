@@ -1,4 +1,4 @@
-# Endless Sky Accessible 1.0.25 - keyboard reference
+# Endless Sky Accessible 1.0.26 - keyboard reference
 
 This reference lists the game's own keys (unchanged) and the extra accessibility keys.
 All game keys are the defaults of Endless Sky 0.11.4. If you have changed a key in
@@ -114,7 +114,8 @@ not available there.
 ### Flight
 
 - Up arrow: forward thrust. Left / Right arrows: turn. Down arrow: reverse thrust,
-  or turn to face backwards if you have no reverse thrusters.
+  or, on most ships (no reverse thrusters), turn to face against your motion. Down is
+  not a brake: after turning, Up slows you down. The mod explains this the first time.
 - Shift+Down: stop the ship (autopilot brakes).
 - E (hold): auto steer toward your target.
 - A: afterburner.
@@ -224,6 +225,9 @@ not available there.
   planets instead.)
 - C: send escorts to the selected system.
 - P, T, S, O, I: ports, stars, shipyards, outfitters and missions modes.
+- In the outfitter (O) and shipyard (S) maps: Up / Down choose an outfit or ship model
+  and say its price and the known systems that sell it, nearest first (and where you
+  have one stored or parked). Left / Right then say for each system whether it sells it.
 - M, D or Escape: close.
 
 ### Conversations and dialogs
@@ -244,7 +248,11 @@ not available there.
 ### Player info and ship info
 
 - Up / Down: select ships. Shift extends the selection. Control+Shift+Up/Down move ships
-  in the fleet order. S or Enter: ship info.
+  in the fleet order. S or Enter: ship info. Control+Down reviews the ships, then the
+  pilot details (net worth, time played, combat rating, licenses...), one per line.
+- Logbook (L): Up / Down choose a month or a category (Factions, People...). Each page
+  is announced with its number of entries and the first entry. Control+Down reads the
+  entries one by one.
 - While landed: K (or Shift+P) parks or unparks the selected ships and says which are
   parked; A parks or unparks all ships; C the ships in this system (both say how many
   are parked). V saves a sorted order. Parked ships stay behind and do not follow you.

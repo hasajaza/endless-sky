@@ -32,7 +32,9 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 #include "../MapDetailPanel.h"
 #include "../MapPanel.h"
 #include "../MapPlanetCard.h"
+#include "../MapOutfitterPanel.h"
 #include "../MapSalesPanel.h"
+#include "../MapShipyardPanel.h"
 #include "../MenuPanel.h"
 #include "../MessageLogPanel.h"
 #include "../MissionPanel.h"
@@ -108,6 +110,11 @@ public:
 	static const System *SelectedSystem(const MapPanel &p) { return p.selectedSystem; }
 	static const Planet *SelectedPlanet(const MapPanel &p) { return p.selectedPlanet; }
 	static const DistanceMap &Distances(const MapPanel &p) { return p.distance; }
+	// The map's colouring value for a system (in outfitter and shipyard maps,
+	// 1 means the selected item is sold there).
+	static double SystemValue(const MapPanel &p, const System *system) { return p.SystemValue(system); }
+	static const Outfit *MapOutfit(const MapOutfitterPanel &p) { return p.selected; }
+	static const Ship *MapShipModel(const MapShipyardPanel &p) { return p.selected; }
 	static int Commodity(const MapPanel &p) { return p.commodity; }
 	static bool IsSimplified(const MapPanel &p) { return p.isSimplified; }
 	static void Select(MapPanel &p, const System *system) { p.Select(system); }
@@ -371,6 +378,26 @@ public:
 
 	// Logbook and message log.
 	static std::string LogbookSelection(const LogbookPanel &p) { return p.selection.first + " " + p.selection.second; }
+	// Heading and text of each entry on the selected logbook page.
+	static std::vector<std::pair<std::string, std::string>> LogbookPage(const LogbookPanel &p)
+	{
+		std::vector<std::pair<std::string, std::string>> result;
+		auto it = p.sections.find(p.selection.first);
+		if(it == p.sections.end())
+			return result;
+		auto sit = it->second.find(p.selection.second);
+		if(sit == it->second.end())
+			return result;
+		for(const auto &entry : sit->second.entries)
+		{
+			std::string text;
+			for(const BookEntry::Item &item : entry.body.items)
+				if(const std::string *paragraph = std::get_if<std::string>(&item))
+					text += (text.empty() ? "" : " ") + *paragraph;
+			result.emplace_back(entry.heading, text);
+		}
+		return result;
+	}
 
 	// Gamerules.
 	static char GamerulesPage(const GamerulesPanel &p) { return p.page; }

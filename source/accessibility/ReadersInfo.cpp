@@ -39,6 +39,12 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 #include "../Ship.h"
 #include "../System.h"
 
+#include <algorithm>
+#include <cmath>
+#include <limits>
+#include <map>
+#include <set>
+
 using namespace std;
 
 namespace {
@@ -124,7 +130,36 @@ namespace {
 			for(const shared_ptr<Ship> &ship : AccessInspector::InfoState(info).Ships())
 				ships.items.emplace_back(ShipSummary(*ship));
 			groups.push_back(std::move(ships));
-			AddScreenText(groups);
+			// The screen draws the pilot column beside the fleet table, so its
+			// lines mix both. Keep only the pilot column, left of the table.
+			vector<AccessCapture::Item> raw = AccessCapture::Raw(&panel);
+			double tableLeft = numeric_limits<double>::max();
+			for(const AccessCapture::Item &item : raw)
+				if(item.text == "ship")
+					tableLeft = min(tableLeft, item.x);
+			map<long, vector<const AccessCapture::Item *>> rows;
+			for(const AccessCapture::Item &item : raw)
+				if(item.x < tableLeft - 5. && !item.text.empty())
+					rows[lround(item.y)].push_back(&item);
+			ReviewGroup pilot{"Pilot", {}};
+			set<string> seen;
+			for(auto &[y, items] : rows)
+			{
+				sort(items.begin(), items.end(), [](const auto *a, const auto *b) { return a->x < b->x; });
+				string line;
+				for(const AccessCapture::Item *item : items)
+				{
+					if(line.empty())
+						line = item->text;
+					else
+						line += (line.back() == ':' ? " " : ", ") + item->text;
+				}
+				if(line.find("Player Info") != string::npos || line == "Ship Info" || !seen.insert(line).second)
+					continue;
+				pilot.items.emplace_back(line);
+			}
+			if(!pilot.items.empty())
+				groups.push_back(std::move(pilot));
 		}
 
 	private:
@@ -553,9 +588,8 @@ namespace {
 
 		void OnOpen() override
 		{
-			Say("Logbook. " + AccessInspector::LogbookSelection(logbook)
-				+ ". Up and Down choose a date or category; Control plus Down arrow reads the entries.",
-				SpeechPriority::FOCUS);
+			Say("Logbook. " + PageSummary() + " Up and Down choose a date or category; Control plus Down arrow "
+				"reads the entries.", SpeechPriority::FOCUS);
 		}
 
 		vector<string> Keys() override
@@ -567,16 +601,48 @@ namespace {
 		void PostKey(int32_t key, uint16_t mod) override
 		{
 			if(key == SDLK_UP || key == SDLK_DOWN)
-				Later(2, [this]()
-				{
-					string text = AccessInspector::LogbookSelection(logbook);
-					// The longest captured text block is normally the entry itself.
-					string longest;
-					for(const AccessCapture::Item &item : AccessCapture::Lines(&panel))
-						if(item.text.size() > longest.size())
-							longest = item.text;
-					Say(text + (longest.size() > 40 ? ". " + longest : string()));
-				});
+				Later(1, [this]() { Say(PageSummary()); });
+		}
+
+		string Summary() override
+		{
+			return PageSummary();
+		}
+
+		// The entries themselves, not the screen text: the logbook's map would
+		// otherwise fill the review with system names.
+		void BuildReview(vector<ReviewGroup> &groups) override
+		{
+			ReviewGroup entries{PageName(), {}};
+			for(const auto &[heading, text] : AccessInspector::LogbookPage(logbook))
+				entries.items.emplace_back(heading + ": " + text);
+			if(entries.items.empty())
+				entries.items.emplace_back("No entries on this page.");
+			groups.push_back(std::move(entries));
+		}
+
+	private:
+		// Special pages repeat the category as the page name.
+		string PageName()
+		{
+			const string selection = AccessInspector::LogbookSelection(logbook);
+			size_t half = selection.size() / 2;
+			if(selection.size() % 2 == 1 && selection.substr(0, half) == selection.substr(half + 1))
+				return selection.substr(0, half);
+			return selection;
+		}
+
+		string PageSummary()
+		{
+			vector<pair<string, string>> page = AccessInspector::LogbookPage(logbook);
+			string text = PageName() + ", " + AccessFormat::Plural(static_cast<int64_t>(page.size()), "entry", "entries");
+			if(!page.empty())
+				text += ". " + page.front().first + ": " + page.front().second;
+			if(!text.empty() && text.back() != '.')
+				text += ".";
+			if(page.size() > 1)
+				text += " Control plus Down arrow for the other entries.";
+			return text;
 		}
 
 	private:

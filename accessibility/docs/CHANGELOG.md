@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.0.26 (2026-11-28)
+
+- Logbook: Control+Down now reads the entries of the chosen page (date and text, or name
+  and description) instead of the system names drawn on the logbook's map. Up / Down
+  announce the page with its number of entries and the first entry.
+- Player info review: the pilot details are read line by line ("net worth: 0 credits")
+  instead of being mixed with the fleet table's column names.
+- Outfitter and shipyard maps: Up / Down say the chosen outfit or ship, its price and the
+  known systems that sell it, nearest first, instead of "Map colouring changed". Left
+  and Right say whether each system sells it.
+- Flight: the first time Down is pressed, the mod explains that it turns the ship
+  against its motion (it is not a brake) unless the ship has reverse thrusters.
+
 ## 1.0.25 (2026-11-27)
 
 - Aim cues for combat (Control+Shift+B, on by default): with an enemy ship targeted near

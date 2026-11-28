@@ -818,6 +818,17 @@ namespace {
 			stopPress = true;
 		bool turning = keys.Has(Command::LEFT) || keys.Has(Command::RIGHT)
 			|| (keys.Has(Command::BACK) && !stopPress);
+		// Down is not a brake: without reverse thrusters it turns the ship
+		// around. Explain that once, the first time it is used.
+		static bool backHintSaid = false;
+		if(keys.Has(Command::BACK) && !stopPress && !backHintSaid && !flagship.IsHyperspacing())
+		{
+			backHintSaid = true;
+			AccessSpeech::Say(flagship.Attributes().Get("reverse thrust")
+				? "Down fires your reverse thrusters, slowing you down or moving you backward."
+				: "Down does not brake: it turns your ship to face against its motion. Then Up slows you down. "
+					"Shift+Down stops the ship by itself.", SpeechPriority::INFO);
+		}
 		double speed = Speed(flagship);
 		double top = flagship.MaxVelocity() * 60.;
 		bool jumping = flagship.IsEnteringHyperspace() || flagship.IsHyperspacing();

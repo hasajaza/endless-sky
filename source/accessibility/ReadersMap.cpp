@@ -85,6 +85,25 @@ namespace {
 		bool canView = player.CanView(*system);
 		if(system == player.GetSystem())
 			parts.push_back("your current system");
+		// In the outfitter and shipyard maps, whether the chosen item is sold here.
+		string id = map.AccessibilityId();
+		if(canView && (id == "MapOutfitterPanel" || id == "MapShipyardPanel"))
+		{
+			string item;
+			if(id == "MapOutfitterPanel")
+			{
+				if(const Outfit *outfit = AccessInspector::MapOutfit(static_cast<MapOutfitterPanel &>(map)))
+					item = outfit->DisplayName();
+			}
+			else if(const Ship *ship = AccessInspector::MapShipModel(static_cast<MapShipyardPanel &>(map)))
+				item = ship->DisplayModelName();
+			if(!item.empty())
+			{
+				double value = AccessInspector::SystemValue(map, system);
+				parts.push_back(value == 1. ? "sells " + item : value == .5 ? "you have " + item + " stored here"
+					: "does not sell " + item);
+			}
+		}
 		if(canView && system->GetGovernment())
 			parts.push_back(system->GetGovernment()->DisplayName());
 		if(!player.HasVisited(*system))
@@ -276,6 +295,8 @@ namespace {
 				"Control plus Enter plans a route to the system under the review cursor",
 				"C sends your escorts to the selected system",
 				"P ports, T stars, S shipyards, O outfitters and I missions map modes",
+				"In the shipyard and outfitter maps, Up and Down choose a ship or outfit and say where it is "
+					"sold, nearest first",
 				"Plus and minus zoom, M, D or Escape close the map"};
 			return keys;
 		}
@@ -345,6 +366,8 @@ namespace {
 					string id = panel.AccessibilityId();
 					if(id == "MapDetailPanel" && AccessInspector::PlanetViewSelected(static_cast<MapDetailPanel &>(panel)))
 						Say(PlanetCard());
+					else if(id == "MapOutfitterPanel" || id == "MapShipyardPanel")
+						Say(SalesItem());
 					else
 						Say(Coloring());
 				});
@@ -539,6 +562,74 @@ namespace {
 			else
 				text += ", not visited";
 			return text + ".";
+		}
+
+		// The outfit or ship chosen with Up and Down in the outfitter or
+		// shipyard map, and the known systems that sell it, nearest first.
+		string SalesItem()
+		{
+			string id = panel.AccessibilityId();
+			string name;
+			int64_t cost = 0;
+			bool outfits = id == "MapOutfitterPanel";
+			if(outfits)
+			{
+				const Outfit *outfit = AccessInspector::MapOutfit(static_cast<MapOutfitterPanel &>(panel));
+				if(!outfit)
+					return "No outfit selected.";
+				name = outfit->DisplayName();
+				cost = outfit->Cost();
+			}
+			else
+			{
+				const Ship *ship = AccessInspector::MapShipModel(static_cast<MapShipyardPanel &>(panel));
+				if(!ship)
+					return "No ship selected.";
+				name = ship->DisplayModelName();
+				cost = ship->Cost();
+			}
+			PlayerInfo &player = Player();
+			const DistanceMap &distance = AccessInspector::Distances(map);
+			vector<pair<int, const System *>> sold;
+			vector<string> stored;
+			for(const auto &it : GameData::Systems())
+			{
+				const System &system = it.second;
+				if(!system.IsValid() || system.Inaccessible() || !player.CanView(system))
+					continue;
+				double value = AccessInspector::SystemValue(map, &system);
+				int jumps = &system == player.GetSystem() ? 0 : distance.HasRoute(system) ? distance.Days(system) : 9999;
+				if(value == 1.)
+					sold.emplace_back(jumps, &system);
+				else if(value == .5)
+					stored.push_back(SystemName(&system));
+			}
+			sort(sold.begin(), sold.end(), [](const auto &a, const auto &b)
+			{
+				return a.first != b.first ? a.first < b.first : a.second->DisplayName() < b.second->DisplayName();
+			});
+			string text = name + ", " + AccessFormat::Credits(cost) + ". ";
+			if(sold.empty())
+				text += "Not sold in any system you know.";
+			else
+			{
+				vector<string> places;
+				for(size_t i = 0; i < sold.size() && i < 5; ++i)
+				{
+					int jumps = sold[i].first;
+					places.push_back(SystemName(sold[i].second) + (jumps == 0 ? string(", here")
+						: jumps == 9999 ? string(", no known route") : ", " + AccessFormat::Plural(jumps, "jump")));
+				}
+				text += "Sold in " + AccessFormat::Plural(static_cast<int64_t>(sold.size()), "system") + ": "
+					+ AccessFormat::List(places);
+				if(sold.size() > 5)
+					text += ", and " + to_string(sold.size() - 5) + " more";
+				text += ".";
+			}
+			if(!stored.empty())
+				text += string(outfits ? " In your storage in: " : " You have one parked in: ")
+					+ AccessFormat::List(stored) + ".";
+			return text;
 		}
 
 		string Coloring()

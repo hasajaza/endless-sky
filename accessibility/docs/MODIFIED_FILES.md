@@ -26,6 +26,7 @@ source/endless-sky-accessibility-1.0.16.patch.
 - source/Interface.cpp/.h: interface buttons report their label, key and state.
 - source/TextArea.h: accessor for the displayed text.
 - source/ConversationPanel.h: accessor for a paragraph's text.
+- source/BookEntry.h: friend AccessInspector, to read the text of logbook entries.
 
 ## Panel identification (the game is built without RTTI)
 

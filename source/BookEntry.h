@@ -63,6 +63,9 @@ public:
 private:
 	void LoadContents(const DataNode &node, int startAt = 0);
 
+	// The accessibility layer reads the text of entries.
+	friend class AccessInspector;
+
 
 private:
 	// The contents of the entry.
